@@ -17,6 +17,7 @@ class ASC(gym.Env):
 
         self.packing = packing
         self.particle = Ellipsoid("Jin")
+        self.num_particle = 24
         
         # particle shape parameter
         self.particle.S2M = np.sqrt(93./64.)
@@ -30,7 +31,7 @@ class ASC(gym.Env):
         
         self.density_old = None
         
-        self.density = self.packing.initialize(self.particle.S2M, self.transMod, self.rotMod)
+        self.density = self.packing.initialize(self.num_particle, self.particle.S2M, self.transMod, self.rotMod)
         
         # action space
         ### transmod and rotmod (*action) reasonable?
@@ -92,7 +93,7 @@ class ASC(gym.Env):
         
         self.density_old = None
         
-        self.density = self.packing.initialize(self.particle.S2M, self.transMod, self.rotMod)
+        self.density = self.packing.initialize(self.num_particle, self.particle.S2M, self.transMod, self.rotMod)
         
         # reset renderer
         #self._reset_render()
