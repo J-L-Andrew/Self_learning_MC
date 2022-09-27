@@ -28,12 +28,12 @@ class ASC(gym.Env):
         self.transMod = 0.3
         self.rotMod = 0.3
         
+        # probability of translation trial move
         self.p_trans = 0.5
         
         self.num_step = 0
         
         self.density_old = None
-        
         self.density = self.packing.initialize(self.num_particle, self.particle.S2M, self.transMod, self.rotMod, self.p_trans, verb=True)
         
         # action space
@@ -95,8 +95,9 @@ class ASC(gym.Env):
         # reset packing
         self.transMod = 0.3
         self.rotMod = 0.3
-        
         self.p_trans = 0.5
+        
+        self.num_step = 0
         
         self.density_old = None
         
@@ -107,8 +108,8 @@ class ASC(gym.Env):
         
         # record observation
         ### 0.8529 is estimated based on MC simulation
-        obs = np.array([1.-self.density, 0.8529, 0.8529])
+        obs = np.array([1.-self.density, 0.74, 0.98])
         return obs
 
-    # def render(self):
-    #     print("is_overlap {:d} overlap_potential {:2f} packing_fraction {:2f}".format(self.packing.is_overlap, self.packing.potential_energy,self.packing.fraction))
+    def render(self):
+        self.packing.scr(-1, self.num_step)
