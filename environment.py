@@ -1,4 +1,3 @@
-from turtle import Turtle
 import numpy as np
 
 import gym
@@ -29,9 +28,13 @@ class ASC(gym.Env):
         self.transMod = 0.3
         self.rotMod = 0.3
         
+        self.p_trans = 0.5
+        
+        self.num_step = 0
+        
         self.density_old = None
         
-        self.density = self.packing.initialize(self.num_particle, self.particle.S2M, self.transMod, self.rotMod)
+        self.density = self.packing.initialize(self.num_particle, self.particle.S2M, self.transMod, self.rotMod, self.p_trans, verb=True)
         
         # action space
         ### transmod and rotmod (*action) reasonable?
@@ -49,14 +52,16 @@ class ASC(gym.Env):
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
 
-    def step(self, action):
+    def step(self):
       
         self.density_old = self.density
         
         # acceptance rate of translation and rotation
         ### To do: both two probabilities can be neither too small or too large
         ### how can this princple be mainfest in RL?
-        p_trans, p_rot = self.packing.sim(self.transMod, self.rotMod)
+        list = self.packing.sim(self.transMod, self.rotMod, self.num_step)
+        p_trans, p_rot = list[0], list[1]
+        self.num_step += 1
         
         self.density = self.packing.density()
 
@@ -91,9 +96,11 @@ class ASC(gym.Env):
         self.transMod = 0.3
         self.rotMod = 0.3
         
+        self.p_trans = 0.5
+        
         self.density_old = None
         
-        self.density = self.packing.initialize(self.num_particle, self.particle.S2M, self.transMod, self.rotMod)
+        self.density = self.packing.initialize(self.num_particle, self.particle.S2M, self.transMod, self.rotMod, self.p_trans, verb=True)
         
         # reset renderer
         #self._reset_render()
