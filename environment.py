@@ -32,6 +32,7 @@ class ASC(gym.Env):
         self.p_trans = 0.5
         
         self.num_step = 0
+        self.total_step = 0
         
         self.density_old = None
         self.density = self.packing.initialize(self.num_particle, self.particle.S2M, self.transMod, self.rotMod, self.p_trans, verb=False)
@@ -65,9 +66,10 @@ class ASC(gym.Env):
         # acceptance rate of translation and rotation
         ### To do: both two probabilities can be neither too small or too large
         ### how can this princple be mainfest in RL?
-        list = self.packing.sim(self.transMod, self.rotMod, self.p_trans, self.num_step)
+        list = self.packing.sim(self.transMod, self.rotMod, self.p_trans, self.total_step)
         p_trans, p_rot = list[0], list[1]
         self.num_step += 1
+        self.total_step += 1
         
         self.density = self.packing.density()
 
@@ -81,7 +83,7 @@ class ASC(gym.Env):
         
         # done
         # delta_density = self.density - self.density_old
-        if (self.num_step < 300):
+        if (self.num_step == 300):
             done = True
         else: done = False
               
@@ -113,7 +115,7 @@ class ASC(gym.Env):
         
         # self.density = self.packing.initialize(self.num_particle, self.particle.S2M, self.transMod, self.rotMod, self.p_trans, verb=False)
         
-        self.transMod, self.rotMod = 0.15, 0.15
+        # self.transMod, self.rotMod = 0.15, 0.15
         
         # reset renderer
         #self._reset_render()
