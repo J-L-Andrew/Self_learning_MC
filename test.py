@@ -11,21 +11,15 @@ num_particle = 24
 # particle shape parameter
 particle.S2M = np.sqrt(93./64.)
         
-        # Translation and rotation magnitudes: 
-        # In MC simulation, they are adjusted to 
-        # maintain the rate of successful trial moves around 0.3.
-        # here we initilaize they as 0.3 as well
-transMod = 0.3
-rotMod = 0.3
+transMod, rotMod = 0.3, 0.3
         
-p_trans = 0.5
+p_trans = 0.5 
         
-        
-density = packing.initialize(num_particle, particle.S2M, transMod, rotMod, p_trans, verb=False)
+density = packing.initialize(num_particle, particle.S2M, transMod, rotMod, p_trans, verb=True)
 
-list = packing.sim(transMod, rotMod, 1)
-p_trans = list[0]
-p_rot = list[1]
-print(list)
+transMod, rotMod = 0.15, 0.15
 
-packing.scr(1, 1)
+for i in range(1e3):
+    list = packing.sim(transMod, rotMod, p_trans, 1)
+
+# packing.scr(1, 1)

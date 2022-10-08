@@ -12,21 +12,21 @@ class ASC(gym.Env):
         'render.modes': ['human', 'rgb_array']
     }
 
-    def __init__(self, packing):
+    def __init__(self, packing, alpha, num_particle):
 
         self.packing = packing
         self.particle = Ellipsoid("Jin")
-        self.num_particle = 24
+        
+        self.num_particle = num_particle
         
         # particle shape parameter
-        self.particle.S2M = np.sqrt(93./64.)
+        self.particle.S2M = alpha
         
         # Translation and rotation magnitudes: 
         # In MC simulation, they are adjusted to 
         # maintain the rate of successful trial moves around 0.3.
         # here we initilaize they as 0.3 as well
-        self.transMod = 0.3
-        self.rotMod = 0.3
+        self.transMod, self.rotMod = 0.3, 0.3
         
         # probability of translation trial move
         self.p_trans = 0.5
@@ -34,11 +34,13 @@ class ASC(gym.Env):
         self.num_step = 0
         
         self.density_old = None
-        self.density = self.packing.initialize(self.num_particle, self.particle.S2M, self.transMod, self.rotMod, self.p_trans, verb=True)
+        self.density = self.packing.initialize(self.num_particle, self.particle.S2M, self.transMod, self.rotMod, self.p_trans, verb=False)
+        
+        self.transMod, self.rotMod = 0.15, 0.15
         
         # action space
         ### transmod and rotmod (*action) reasonable?
-        self.action_space = spaces.Box(low=0.5, high=2., shape=(2, ), dtype=np.float32)
+        self.action_space = spaces.Box(low=0.5, high=2., shape=(3, ), dtype=np.float32)
 
         # observation space
         ### the shape of particles can vary as initial parameters for different experiments 
@@ -52,14 +54,18 @@ class ASC(gym.Env):
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
 
-    def step(self):
-      
+    def step(self, action):
+
         self.density_old = self.density
+        
+        self.transMod = np.clip(self.transMod*action[0], 0, 0.2)
+        self.rotMod = np.clip(self.rotMod*action[1], 0, 0.2)
+        self.p_trans = np.clip(self.p_trans*action[2], 0, 1)
         
         # acceptance rate of translation and rotation
         ### To do: both two probabilities can be neither too small or too large
         ### how can this princple be mainfest in RL?
-        list = self.packing.sim(self.transMod, self.rotMod, self.num_step)
+        list = self.packing.sim(self.transMod, self.rotMod, self.p_trans, self.num_step)
         p_trans, p_rot = list[0], list[1]
         self.num_step += 1
         
@@ -74,11 +80,16 @@ class ASC(gym.Env):
         obs = np.array([1.-self.density, p_trans, p_rot])
         
         # done
-        delta_density = self.density - self.density_old
-        if (delta_density < 1e-7):
+        # delta_density = self.density - self.density_old
+        if (self.num_step < 300):
             done = True
         else: done = False
-
+              
+        # if (delta_density < 1e-7):
+        #     done = True
+        #     self.packing.scr(1, self.num_step)
+        # else: done = False
+        
         ### not clear yet
         info = {}
 
@@ -93,15 +104,16 @@ class ASC(gym.Env):
 
     def reset(self):
         # reset packing
-        self.transMod = 0.3
-        self.rotMod = 0.3
-        self.p_trans = 0.5
+        # self.transMod, self.rotMod = 0.3, 0.3
+        # self.p_trans = 0.5
         
         self.num_step = 0
         
-        self.density_old = None
+        # self.density_old = None
         
-        self.density = self.packing.initialize(self.num_particle, self.particle.S2M, self.transMod, self.rotMod, self.p_trans, verb=True)
+        # self.density = self.packing.initialize(self.num_particle, self.particle.S2M, self.transMod, self.rotMod, self.p_trans, verb=False)
+        
+        self.transMod, self.rotMod = 0.15, 0.15
         
         # reset renderer
         #self._reset_render()
@@ -112,4 +124,4 @@ class ASC(gym.Env):
         return obs
 
     def render(self):
-        self.packing.scr(-1, self.num_step)
+        print("packing_fraction {:2f}".format(self.packing.fraction))
