@@ -31,6 +31,9 @@ class ASC(gym.Env):
         # probability of translation trial move
         self.p_trans = 0.5
         
+        # acceptance rate of translation and rotation
+        self.pa_t, self.pa_r = 0.74, 0.98
+         
         self.num_step = 0
         self.total_step = 0
         
@@ -67,7 +70,7 @@ class ASC(gym.Env):
         ### To do: both two probabilities can be neither too small or too large
         ### how can this princple be mainfest in RL?
         list = self.packing.sim(self.transMod, self.rotMod, self.p_trans, self.total_step)
-        p_trans, p_rot = list[0], list[1]
+        self.pa_t, self.pa_r = list[0], list[1]
         self.num_step += 1
         self.total_step += 1
         
@@ -79,7 +82,7 @@ class ASC(gym.Env):
         # observation
         ### 1-densiy: want to make density close to 1
         ### but I don't know how to modify two probabilities
-        obs = np.array([1.-self.density, p_trans, p_rot])
+        obs = np.array([1.-self.density, self.pa_t, self.pa_r])
         
         # done
         # delta_density = self.density - self.density_old
@@ -93,7 +96,7 @@ class ASC(gym.Env):
         # else: done = False
         
         ### not clear yet
-        info = {}
+        info = {"packing_fraction":self.density}
 
 #         info = {
 # #             "is_overlap":self.packing.is_overlap,
@@ -121,9 +124,8 @@ class ASC(gym.Env):
         #self._reset_render()
         
         # record observation
-        ### 0.8529 is estimated based on MC simulation
-        obs = np.array([1.-self.density, 0.74, 0.98])
+        obs = np.array([1.-self.density, self.pa_t, self.pa_r])
         return obs
 
     def render(self):
-        print("packing_fraction {:2f}".format(self.packing.fraction))
+        print("packing_fraction {:2f}".format(self.density))
