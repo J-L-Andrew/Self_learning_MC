@@ -9,7 +9,7 @@ from stable_baselines3 import PPO
 from environment import ASC
 
 env = ASC(packing, np.sqrt(93./64.), 24)
-model = PPO.load("/mnt/Edisk/andrew/Self_learning_MC/asc-v21.zip")
+model = PPO.load("/mnt/Edisk/andrew/Self_learning_MC/asc-v1.zip")
 
 info_list = []
 obs = env.reset()

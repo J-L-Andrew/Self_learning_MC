@@ -5,7 +5,6 @@ import random
 from copy import deepcopy
 from pytorch3d import transforms
 
-
 class Particle(object):
     def __init__(self):
         self.name = ''
@@ -24,6 +23,16 @@ class Particle(object):
 
         # color
         self.color = None
+    
+    @property
+    def rot_mat(self):
+        """ note that: rot_mat = Rz*Ry*Rx = Q^T """
+        return transforms.quaternion_to_matrix(self.orientation)
+    
+    def support_func(self, u: np.array):
+        """ particle's support function h(u) = max(x∈K) u · x.
+        """
+        pass
 
     def scaled_centroid(self, lattice):
         """
@@ -125,7 +134,7 @@ class Particle(object):
         
         
         
-        
+    
             
     
     
