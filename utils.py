@@ -5,8 +5,7 @@ from scipy import optimize
 
 
 def relu(x):
-    return np.maximum(0, x)
-
+    return np.maximum(0, x) 
 
 def Heaviside(x):
     """
@@ -21,13 +20,10 @@ def abs_norm(x, Relu=False):
     temp = relu(x) if Relu else x
     return int(np.linalg.norm(temp, ord=1))
 
-
 def Ham2JPL(quaternion):
-  temp = torch.tensor(np.expand_dims(quaternion[0], 0))
-  return torch.cat([quaternion[1:], temp])
+    temp = torch.tensor(np.expand_dims(quaternion[0], 0))
+    return torch.cat([quaternion[1:], temp])
   
-
-
 class Transform():
     def __init__(self):
         self.euler_convention = "ZYX"
@@ -43,8 +39,8 @@ class Transform():
     def euler2qua(self, angle, convention='Hamilton'):
         """
         Convert euler angle to quaternion (two type of convention):
-                        Hamilton = (w, x, y, z), by default
-                        JPL = (x, y, z, w)  
+                        pytorch3d: Hamilton = (w, x, y, z), by default
+                        tensorflow: JPL = (x, y, z, w)  
         """
         x = self.euler2mat(angle)
         qua = transforms.matrix_to_quaternion(x)
@@ -79,6 +75,15 @@ class Transform():
         
         qua_0 = self.euler2qua(orientation)
         new_qua = transforms.quaternion_multiply(qua_0, qua)
+    
+    def mat2qua(self, matrix, convention='Hamilton'):
+        mat = torch.as_tensor(matrix)
+        qua = transforms.matrix_to_quaternion(mat)
+        
+        if convention == 'Hamilton':
+            return qua
+        elif convention == 'JPL':
+            return Ham2JPL(qua)
         
 
 def data_scale(unscaled, from_range, to_range):
@@ -196,15 +201,21 @@ def output_xyz(filename, packing, repeat=True):
     For visulaization in ovito
     """
     if (repeat):
-        centroid = [particle.centroid for particle in packing.primitive_particles]
-        quaternion = [Ham2JPL(particle.orientation).numpy() for particle in packing.primitive_particles]
-        semi_axis = [particle.semi_axis for particle in packing.primitive_particles]
-        color = [particle.color for particle in packing.primitive_particles]
+        centroid = [particle.centroid for particle in packing.visable_particles]
+        quaternion = []
+        for particle in packing.visable_particles:
+            orientation = Transform().mat2qua(particle.rot_mat)
+            quaternion.append(Ham2JPL(orientation).numpy())
+        semi_axis = [particle.semi_axis for particle in packing.visable_particles]
+        color = [particle.color for particle in packing.visable_particles]
 
-        n = len(packing.primitive_particles)
+        n = len(packing.visable_particles)
     else:
         centroid = [particle.centroid for particle in packing.particles]
-        quaternion = [Ham2JPL(particle.orientation).numpy() for particle in packing.particles]
+        quaternion = []
+        for particle in packing.particles:
+            orientation = Transform().mat2qua(particle.rot_mat)
+            quaternion.append(Ham2JPL(orientation).numpy())
         semi_axis = [particle.semi_axis for particle in packing.particles]
         color = [particle.color for particle in packing.particles]
 

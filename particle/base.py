@@ -14,7 +14,10 @@ class Particle(object):
         self.centroid = None
         self.centroid_L = None
         
-        self.orientation = None # quaternion
+        # self.orientation = None # quaternion
+        
+        # note that: rot_mat = Rz*Ry*Rx (in aggrement with Kallus)
+        self.rot_mat = None
         
         # Retain policy
         self.centroid_old = None # for cell deform
@@ -23,11 +26,6 @@ class Particle(object):
 
         # color
         self.color = None
-    
-    @property
-    def rot_mat(self):
-        """ note that: rot_mat = Rz*Ry*Rx = Q^T """
-        return transforms.quaternion_to_matrix(self.orientation)
     
     def support_func(self, u: np.array):
         """ particle's support function h(u) = max(x∈K) u · x.
