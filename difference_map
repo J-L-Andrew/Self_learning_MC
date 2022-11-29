@@ -1,0 +1,86 @@
+import numpy as np
+
+# Follow the notation of Kallus
+dim = 3 # d in paper
+nB = 4 # p in paper
+nA = 10 # number of rows for matrix A (nA, dim+nB), may change
+
+# Xij for all i != j, we use 2*NUM_REPLICA because 
+NUM_REPLICA = 6
+
+
+
+def update_A():
+    ListClosest()
+    
+    A_back = Anew.copy()
+    xt = np.matmul(Anew, u) # (nAnew, dim)
+    
+    
+def Ltrd():
+    # u: (dim+nB, dim)
+    u0 = u[dim:][:]
+    u1 = u[0:dim][:]
+    
+    Lattice = u[0:dim][:]
+    Lattice_new, H = LLL(dim, Lattice) # (dim, dim)
+    
+    # H = G  = (G0 0, G1 1)
+    Hd = np.zero(dim+nB, dim+nB)
+    Hd[0:dim][0:dim] = np.double(H) # H: int
+    
+    # To do: how to compute G1
+    
+    
+  
+    
+    Hd[dim:][dim:] = np.diag(np.ones(nB))
+    
+    Hd = np.diag(np.ones(dim+nB))
+    Hinvd = np.diag(np.ones(dim+nB))
+    
+    
+    # 1253
+    unew = np.matmul(Hd, u) # (dim+nB, dim)
+    u = unew.copy()
+    
+    # Anew = A.Hinv
+    Anew = np.matmul(Ad, Hinvd) # (nA, dim+nB)
+    
+    
+
+
+def weight_func():
+    pass
+
+
+
+def update_weights(tau: np.double):
+    W = (tau*W + weight_func) / (tau+1.)
+    
+
+def ListClosest():
+    pass
+  
+def calc_atwa():
+
+    # W is a diagonal matrix whose diagonal elements wi are the metric weights of different replicas
+    for i in range(DIM_A):
+        for j in range(DIM+NUM_PARTICLE):
+          # temp = WA
+          temp[i][j] = 
+    
+    atwa = np.matmul(A.T, temp) # (dim+nB, dim+nB)
+    atwainv = np.linalg.pinv(atwa)
+    
+    # temp = (W'11)^-1 * W'10 | (nB, nB)*(nB, dim)
+    wtemp = np.linalg.pinv(atwa[dim:][dim:])
+    # w' = atwa
+    # i means inverse
+    temp = np.matmul(wtemp, atwa[dim:][0:dim]) # (nB, dim)
+    
+    # atwa2 = W'' = W'00 - W'01*(W'11)^-1 * W'10
+    atwa2 = atwa[0:dim][0:dim] - np.matmul(atwa[0:dim][dim:], temp) # (dim, dim)
+    
+
+    
