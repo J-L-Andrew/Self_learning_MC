@@ -1,12 +1,51 @@
 import numpy as np
+from particle.superellipsoid import *
+
 
 # Follow the notation of Kallus
 dim = 3 # d in paper
 nB = 4 # p in paper
 nA = 10 # number of rows for matrix A (nA, dim+nB), may change
 
+nP = 6 # number of vertices
+
 # Xij for all i != j, we use 2*NUM_REPLICA because 
 NUM_REPLICA = 6
+
+def dm_step():
+    err = 0.
+    
+    p1
+    
+    
+def p1(input: np.array):
+    # input: (dim+nB, dim)
+    pass
+    
+
+def proj_nonoverlap():
+    # 输入的in应该是一对颗粒
+    # check centroid-centroid distance
+    distance = np.linalg.norm(particle[0].centroid - particle.centroid)
+    if (distance > max_d): return 0
+    
+    if (is_overlap(particle[0], particle[0])):
+        resolve_overlap()
+
+def proj_rigid():
+    pass
+
+def p2():
+      # u = atwainv . ( Atran . W*in )
+      out = np.matmul(W, in)
+      
+      AtranWin = np.matmul(Ad.T, out)
+      u = np.matmul(atwainv, AtranWin)
+      
+
+def divide():
+    for i in range():
+        proj_nonoverlap()
 
 
 
@@ -18,6 +57,9 @@ def update_A():
     
     
 def Ltrd():
+    # H = G  = (G0 0, G1 1)
+    Hd = np.zero(dim+nB, dim+nB)
+  
     # u: (dim+nB, dim)
     u0 = u[dim:][:]
     u1 = u[0:dim][:]
@@ -25,8 +67,6 @@ def Ltrd():
     Lattice = u[0:dim][:]
     Lattice_new, H = LLL(dim, Lattice) # (dim, dim)
     
-    # H = G  = (G0 0, G1 1)
-    Hd = np.zero(dim+nB, dim+nB)
     Hd[0:dim][0:dim] = np.double(H) # H: int
     
     # To do: how to compute G1
@@ -35,9 +75,9 @@ def Ltrd():
   
     
     Hd[dim:][dim:] = np.diag(np.ones(nB))
+    Hinvd = np.diag(np.ones(dim+nB)) # (dim+nB, dim+nB)
     
-    Hd = np.diag(np.ones(dim+nB))
-    Hinvd = np.diag(np.ones(dim+nB))
+    Hd[0:dim][0:dim] = np.double(H[0:dim][0:dim])
     
     
     # 1253
@@ -46,11 +86,24 @@ def Ltrd():
     
     # Anew = A.Hinv
     Anew = np.matmul(Ad, Hinvd) # (nA, dim+nB)
+    # A = Anew
+    Anew, A = A, Anew
+    
+    # LRr_new = H.LEr(old)
+    LRrnew = np.matmul(Hd, LRr)
+    
+    LRr = LRrnew.copy()
+    Al = Ad.copy()
+    
     
     
 
 
 def weight_func():
+    """
+    assigns replica weights based on 
+    their configuration in the concur estimate and
+    """
     pass
 
 

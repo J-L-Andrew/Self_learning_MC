@@ -42,6 +42,12 @@ class SuperEllipsoid(Particle):
     
     def support_func(self, u: np.array):
         """
+        Particle's support function:
+        
+        located in the origin, without rotation
+        """
+      
+        """
         Find r_c with its normal vector equals u
         We should not consider the orientation of a single particle because
         the rotation is applied to u
@@ -62,6 +68,14 @@ class SuperEllipsoid(Particle):
         r_c *= k**(1./dp)    
         
         return np.dot(r_c, u)
+      
+    def supFun(self, u: np.array):
+        """
+        The support function of a specific particle
+        """
+        y = self.support_func(np.matmul(self.rot_mat.T, u.T).T)
+        y += np.dot(u, self.centroid)
+        return y
       
     def check(self, vector):
       
@@ -86,8 +100,27 @@ class SuperEllipsoid(Particle):
         tr = np.dot(point, u)
         
         return (tr-self.support_func(u))
-        
-        
+
+"""
+Check whether two particle overlap
+"""
+def delta_h_normalized(u: np.array, p1: SuperEllipsoid, p2: SuperEllipsoid):
+    """ delta_h(u) / ||u|| """
+    y = (p1.supFun(u) + p2.supFun(-u)) / np.linalg.norm(u)
+    return y
+
+def is_overlap(p1: SuperEllipsoid, p2: SuperEllipsoid):
+    """
+    According to the separating plane theorem.
+    """
+    x0 = np.ones(3)*2.
+    u_c = optimize.minimize(lambda x: delta_h_normalized(x, p1, p2), x0, method='SLSQP')
+    
+    y = delta_h_normalized(u_c, p1, p2)
+    if (y <= 0.): return 0
+    else: return 1
+    
+    
         
 
 def resolve_overlap_new(x: np.array, p1: SuperEllipsoid, p2: SuperEllipsoid):
