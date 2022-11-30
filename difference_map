@@ -15,7 +15,20 @@ NUM_REPLICA = 6
 def dm_step():
     err = 0.
     
-    p1
+    """ 
+    f_D(X) = (1-1/beta)*pi_D(X) + 1/beta*X = X
+    f_C(X) = (1+1/beta)*pi_C(X) - 1/beta*X = 2*pi_C(X) - X
+    """
+    x1 = p1(x) # pi_D(X)
+    
+    fc = 2.*x1 - x # f_C(X)
+    
+    x2 = p2(fc) # pi_
+    
+    err = np.dot(x1-x2, x1-x2)
+    
+    # iterate X = X + beta*(X_D-X_C)
+    x -= (x1-x2)
     
     
 def p1(input: np.array):
@@ -118,12 +131,10 @@ def ListClosest():
 def calc_atwa():
 
     # W is a diagonal matrix whose diagonal elements wi are the metric weights of different replicas
-    for i in range(DIM_A):
-        for j in range(DIM+NUM_PARTICLE):
-          # temp = WA
-          temp[i][j] = 
+    # temp = WA
+    temp = np.matmul(W, Ad)
     
-    atwa = np.matmul(A.T, temp) # (dim+nB, dim+nB)
+    atwa = np.matmul(Ad.T, temp) # (dim+nB, dim+nB)
     atwainv = np.linalg.pinv(atwa)
     
     # temp = (W'11)^-1 * W'10 | (nB, nB)*(nB, dim)
@@ -135,5 +146,13 @@ def calc_atwa():
     # atwa2 = W'' = W'00 - W'01*(W'11)^-1 * W'10
     atwa2 = atwa[0:dim][0:dim] - np.matmul(atwa[0:dim][dim:], temp) # (dim, dim)
     
+    eigenvalue, featurevector = np.linalg.eig(atwa2)
+    
+    # let Q = W^-1/2, then V1 (V_target) = V0*det(Q)
+    V1 = V0
+    for i in range(dim): V1*=np.sqrt(eigenvalue[i])
 
+    
+if __name__ == '__main__':
+    pass
     
