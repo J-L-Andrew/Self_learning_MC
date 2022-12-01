@@ -9,7 +9,8 @@ nA = 10 # number of rows for matrix A (nA, dim+nB), may change
 # a pair of particles
 replica = [SuperEllipsoid(2., 1., 1., 1.) for i in range(2)]
 
-nP = 6 # number of vertices
+# here nP=dim+1
+nP = 6 # number of vertices (dim of single particle)
 
 # Xij for all i != j, we use 2*NUM_REPLICA because 
 NUM_REPLICA = 6
@@ -47,8 +48,21 @@ def proj_nonoverlap():
     if (is_overlap(particle[0], particle[0])):
         resolve_overlap()
 
-def proj_rigid():
-    pass
+def proj_rigid(single: np.array):
+    """ project basis points onto rigid bodies """
+    
+    # single: means the parameter of a single particle
+    R = single[0:dim][:]
+    
+    U, Sigma, V = np.linalg.svd(R, full_matrices=True)
+    Sigma = np.ones(dim)
+    
+    temp = np.matmul(Sigma, V)
+    Rnew = np.matmul(U, temp)
+    
+    single_new = np.concatenate(Rnew, single[dim])
+    
+    return single_new
 
 def p2():
       # u = M_bar = atwainv . ( Atran . W*in ) in: X
@@ -147,7 +161,7 @@ def Ltrd():
     Al = Ad.copy()
     
     
-    
+def  
 
 
 def weight_func(pair: np.array):
@@ -172,23 +186,24 @@ def weight_func(pair: np.array):
         if (delta > 0.): 
             is_overlap = True
             delta_square = delta**2
+            
+            # Todo: ret??
     
     if (is_overlap): return np.exp(alpha*delta_square)
     else: 
         y = (1. + dist**2 - inscribed_D**2)**(-2)
         return y
       
-      
-
-
-        pass
     
-    pass
 
 
 
 def update_weights(tau: np.double):
-    W = (tau*W + weight_func) / (tau+1.)
+    for i in range(0, nA, 2*np):
+        pair = x[i:i+2*np][:] # slice first
+        W[i/(2*np)] =  (tau*W[i/(2*np)] + weight_func(pair)) / (tau+1.)
+        
+        # Todo: ret?
     
 
 def ListClosest():
