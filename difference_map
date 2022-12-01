@@ -1,11 +1,13 @@
 import numpy as np
 from particle.superellipsoid import *
 
-
 # Follow the notation of Kallus
 dim = 3 # d in paper
 nB = 4 # p in paper
 nA = 10 # number of rows for matrix A (nA, dim+nB), may change
+
+# a pair of particles
+replica = [SuperEllipsoid(2., 1., 1., 1.) for i in range(2)]
 
 nP = 6 # number of vertices
 
@@ -148,11 +150,39 @@ def Ltrd():
     
 
 
-def weight_func():
+def weight_func(pair: np.array):
     """
     assigns replica weights based on 
-    their configuration in the concur estimate and
+    their configuration in the concur estimate
     """
+    
+    # rotation matrix and translation vector (centroid)
+    R1, r1 = pair[0:dim][:], pair[dim][:]
+    R2, r2 = pair[dim+1:2*dim+1][:], pair[2*dim+1][:]
+  
+    dist = np.linalg.norm(r1 - r2)
+    is_overlap = False
+    if (dist < outscribed_D):
+        replica[0].centroid = r1
+        replica[0].rot_mat = R1
+        replica[1].centroid = r2
+        replica[1].rot_mat = R2
+        
+        delta = overlap_measure(replica[0], replica[1])
+        if (delta > 0.): 
+            is_overlap = True
+            delta_square = delta**2
+    
+    if (is_overlap): return np.exp(alpha*delta_square)
+    else: 
+        y = (1. + dist**2 - inscribed_D**2)**(-2)
+        return y
+      
+      
+
+
+        pass
+    
     pass
 
 

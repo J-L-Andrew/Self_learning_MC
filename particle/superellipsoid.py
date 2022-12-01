@@ -109,6 +109,17 @@ def delta_h_normalized(u: np.array, p1: SuperEllipsoid, p2: SuperEllipsoid):
     y = (p1.supFun(u) + p2.supFun(-u)) / np.linalg.norm(u)
     return y
 
+def overlap_measure(p1: SuperEllipsoid, p2: SuperEllipsoid):
+    """
+    According to the separating plane theorem.
+    """
+    x0 = np.ones(3)*2.
+    u_c = optimize.minimize(lambda x: delta_h_normalized(x, p1, p2), x0, method='SLSQP')
+    
+    y = delta_h_normalized(u_c, p1, p2)
+    return y
+
+
 def is_overlap(p1: SuperEllipsoid, p2: SuperEllipsoid):
     """
     According to the separating plane theorem.
