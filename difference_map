@@ -34,19 +34,44 @@ def dm_step():
     x -= (x1-x2)
     
     
-def p1(input: np.array):
-    # input: (dim+nB, dim)
-    pass
+def p1(x: np.array):
+    # x: (dim+nB, dim)
+    
+    x_new = x.copy()
+    for i in range(0, nA, 2*np):
+        pair = x[i:i+2*np][:]
+        pair_new = proj_nonoverlap(pair)
+        x_new[i:i+2*np][:] = pair_new
+    
+    return x_new
     
 
-def proj_nonoverlap():
+def proj_nonoverlap(pair: np.array):
     # 输入的in应该是一对颗粒
     # check centroid-centroid distance
-    distance = np.linalg.norm(particle[0].centroid - particle.centroid)
-    if (distance > max_d): return 0
+    # rotation matrix and translation vector (centroid)
+    R1, r1 = pair[0:dim][:], pair[dim][:]
+    R2, r2 = pair[np:2*dim+1][:], pair[2*dim+1][:]
     
-    if (is_overlap(particle[0], particle[0])):
-        resolve_overlap()
+    pair_new = pair.copy()
+  
+    dist = np.linalg.norm(r1 - r2)
+    if (dist < outscribed_D):
+        replica[0].centroid = r1
+        replica[0].rot_mat = R1
+        replica[1].centroid = r2
+        replica[1].rot_mat = R2
+        
+        delta = overlap_measure(replica[0], replica[1])
+        if (delta > 0.): 
+            resolve_overlap(replica[0], replica[1])
+            
+            pair_new[0:dim][:], pair_new[dim][:] = replica[0].rot_mat, replica[0].centroid
+            pair_new[np:2*dim+1][:], pair_new[2*dim+1][:] = replica[1].rot_mat, replica[1].centroid
+            
+            # Todo: ret??
+    
+    return pair_new
 
 def proj_rigid(single: np.array):
     """ project basis points onto rigid bodies """
@@ -97,7 +122,8 @@ def p2():
       # U += dU
       u += plu
       
-      for i in range(num_particle): proj_rigid
+      for i in range(0, nB, nP): 
+          u[dim+i, dim+i+nP][:] = proj_rigid(u[dim+i, dim+i+nP][:])
       
       out = np.matmul(Ad, u)
       
