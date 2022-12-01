@@ -49,12 +49,43 @@ def proj_rigid():
     pass
 
 def p2():
-      # u = atwainv . ( Atran . W*in )
+      # u = M_bar = atwainv . ( Atran . W*in ) in: X
       out = np.matmul(W, in)
       
       AtranWin = np.matmul(Ad.T, out)
       u = np.matmul(atwainv, AtranWin)
       
+      # L = Qinv*M0
+      L = np.matmul(Qinv[0:dim][0:dim], u[0:dim][0:dim])
+      # U=plu (P), V=plv (R) (Kallus)
+      plu, Sigma, plv = np.linalg.svd(L,full_matrices=False)
+      
+      
+      # we need to make sure that sigma 从大到小排序
+      detL = np.prod(Sigma)
+      
+      if (np.fabs(detL) > V1): pass
+      else: pass
+      
+      # let U0 = Q.P.SINGVAL.R
+      singval = np.diag(Sigma)
+      temp = np.matmul(singval, plv)
+      AtranWin = np.matmul(plu, temp)
+      
+      # dU = Q.AtranWin - U
+      plu = np.matmul(Q, temp) - u[0:dim][0:dim]
+      
+      # then let U1 += (-atwa11inv . atwa10) . (U0 - U0init)
+      u[dim:][:] -= np.matmul(mw11iw1, plu)
+      
+      # U += dU
+      u += plu
+      
+      for i in range(num_particle): proj_rigid
+      
+      out = np.matmul(Ad, u)
+      
+      return out
 
 def divide():
     for i in range():
@@ -71,14 +102,19 @@ def update_A():
     
 def Ltrd():
     # H = G  = (G0 0, G1 1)
-    Hd = np.zero(dim+nB, dim+nB)
+    Hd = np.zero(dim+nB, dim+nB) # (dim+nB, dim+nB)
   
     # u: (dim+nB, dim)
+    LRrnew[0:nB][0:dim] = u[dim:][:]
+    Hinvd[0:dim][0:dim] = u[0:dim][:]
+    
     u0 = u[dim:][:]
     u1 = u[0:dim][:]
     
     Lattice = u[0:dim][:]
     Lattice_new, H = LLL(dim, Lattice) # (dim, dim)
+    
+    unew[0:dim][:] = Lattice_new
     
     Hd[0:dim][0:dim] = np.double(H) # H: int
     
@@ -102,7 +138,7 @@ def Ltrd():
     # A = Anew
     Anew, A = A, Anew
     
-    # LRr_new = H.LEr(old)
+    # LRr_new = H.LRr(old)
     LRrnew = np.matmul(Hd, LRr)
     
     LRr = LRrnew.copy()
@@ -154,5 +190,6 @@ def calc_atwa():
 
     
 if __name__ == '__main__':
+    LRr = np.diag(np.ones(dim+nB))
     pass
     
