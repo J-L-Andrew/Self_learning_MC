@@ -228,7 +228,34 @@ def update_weights(tau: np.double):
         W[i/(2*np)] =  (tau*W[i/(2*np)] + weight_func(pair)) / (tau+1.)
         
         # Todo: ret?
+ 
+
+def RotOpt():
+    """ Gram schimit
+    """
     
+    # input: dim*dim (lattice)
+    h = np.zeros(dim)
+    for i in range(dim): h[i] = i
+
+    
+    uu = np.zeros(dim, dim)
+    for i in range(dim):
+        uu[i][:] = lattice[h[i]][:]
+
+    # Gram schimidt in the order u[h[0]], u[h[1]], ...
+    # gs: (dim, dim)
+    for i in range(dim):
+        gs[i] = u[h[i]]
+        # gs[k] -= (gs[k].gs[l<k]) gs[l]
+        for j in range(i):
+            gs[i] -= np.dot(u[h[i]], gs[j])*gs[j]
+        
+        # normalized
+        gs[i] /= np.norm.linalg(gs[i])
+    
+    g[0:dim][:] = np.matmul(uu, gs.T)
+    g[dim:dim+nB][:] = np.matmul(u[dim:dim+nB][:], gs)
 
 def ListClosest():
     """ Gram schimit
