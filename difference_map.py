@@ -184,9 +184,6 @@ def Ltrd():
     LRr = LRrnew.copy()
     Al = Ad.copy()
     
-    
-def  
-
 
 def weight_func(pair: np.array):
     """
@@ -231,10 +228,15 @@ def update_weights(tau: np.double):
  
 
 def RotOpt():
-    """ Gram schimit
+    """ 
+    Algorithm CLOSEPOINT adpated from "Closest Point Search in Lattices".
+    
+    step2: QR decomposition
     """
     
-    # input: dim*dim (lattice)
+    # input: (dim+nB)*dim
+    lattice = input[0:dim][:]
+    
     h = np.zeros(dim)
     for i in range(dim): h[i] = i
 
@@ -244,38 +246,50 @@ def RotOpt():
         uu[i][:] = lattice[h[i]][:]
 
     # Gram schimidt in the order u[h[0]], u[h[1]], ...
-    # gs: (dim, dim)
+    # gs = Q (orthonormal matrix)
+    gs = np.zeros(dim, dim) # (dim, dim)
     for i in range(dim):
         gs[i] = u[h[i]]
         # gs[k] -= (gs[k].gs[l<k]) gs[l]
-        for j in range(i):
-            gs[i] -= np.dot(u[h[i]], gs[j])*gs[j]
+        for j in range(i): gs[i] -= np.dot(u[h[i]], gs[j])*gs[j]
         
         # normalized
         gs[i] /= np.norm.linalg(gs[i])
     
-    g[0:dim][:] = np.matmul(uu, gs.T)
-    g[dim:dim+nB][:] = np.matmul(u[dim:dim+nB][:], gs)
+    # g[0:dim][:] = G3 = G2 * Q^T (lower-triangular matrix)
+    # let x = x * Q^T
+    g = np.matmul(input, gs.T) # (dim+nB, dim)
+    
+    return h, g
 
 def ListClosest():
     """ Gram schimit
     """
     
-    # input: dim*dim (lattice)
-    uu = np.zeros(dim, dim)
-    for i in range(dim):
-        uu[i][:] = lattice[h[i]][:]
+    tasks_x[ntasks] = np.zeros(dim)
+    tasks_x[ntasks] -= 1
+    
+    
+    """
+    Our criterion for which replicas to represent is based
+    on the difference map’s current concur estimate: we include
+    a replica pair for each pair of particles whose centroids in the
+    concur estimate are closer than some cutoff distance."""
+    nAnew = 0
+    
+    # xperp (u_n^*||v_perp||)
+    # The indices of these layers are u_n:
+    indice_min = np.ceil((xperp - rho)/vperp)
+    indice_max = np.floor((xperp + rho)/vperp)
+    
+    for indice in range(indice_min, indice_max):
 
-    # Gram schimidt in the order u[h[0]], u[h[1]], ...
-    
-    gs = uu.copy()
     
     
     
-
+    # perp: perpendicular???
     
-    
-    pass
+  
   
 def calc_atwa():
 
