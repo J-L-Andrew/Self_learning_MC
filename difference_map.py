@@ -68,8 +68,6 @@ def proj_nonoverlap(pair: np.array):
             
             pair_new[0:dim][:], pair_new[dim][:] = replica[0].rot_mat, replica[0].centroid
             pair_new[np:2*dim+1][:], pair_new[2*dim+1][:] = replica[1].rot_mat, replica[1].centroid
-            
-            # Todo: ret??
     
     return pair_new
 
@@ -233,6 +231,23 @@ def update_weights(tau: np.double):
     
 
 def ListClosest():
+    """ Gram schimit
+    """
+    
+    # input: dim*dim (lattice)
+    uu = np.zeros(dim, dim)
+    for i in range(dim):
+        uu[i][:] = lattice[h[i]][:]
+
+    # Gram schimidt in the order u[h[0]], u[h[1]], ...
+    
+    gs = uu.copy()
+    
+    
+    
+
+    
+    
     pass
   
 def calc_atwa():
