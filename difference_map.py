@@ -15,6 +15,21 @@ nP = 6 # number of vertices (dim of single particle)
 # Xij for all i != j, we use 2*NUM_REPLICA because 
 NUM_REPLICA = 6
 
+class Lambda(object):
+    """ still do not understand """
+    def __init__(self):
+        pass
+    
+    def func0(self, x): return 0.5 * (1. + np.sqrt(1.+x**2))
+    def func1(self, x): return 0.5 * (1. + np.sqrt(1.-x**2))
+    def func2(self, x): return 0.5 * (1. - np.sqrt(1.-x**2))
+    
+    def dfunc0(self, x): return 0.5 * x * (1. + np.sqrt(1.+x**2))
+    def dfunc1(self, x): return -0.5 * x * (1. + np.sqrt(1.-x**2))
+    def dfunc2(self, x): return 0.5 * x * (1. - np.sqrt(1.-x**2))
+    
+
+
 def dm_step():
     err = 0.
     
@@ -87,6 +102,203 @@ def proj_rigid(single: np.array):
     
     return single_new
 
+def zbrent(l1: np.double, l2: np.double, singval: np.array, branch: np.int):
+    """ Brent's method: a root-finding algorithm """
+    # hyperparameters
+    brent_itmax = 25
+    brent_prec = 1.e-5
+    brent_acc = 1.e-8
+    
+    f_goal = 1.e-12
+    refin_max = 70
+    refin_prec = 1.e-7
+    refin_acc = 1.e-11
+    
+    a = l1
+    b = c = l2
+    
+    # fa, fb: bisection method
+    if (branch == -1):
+        fa = np.prod(singval)
+        for i in range(dim): fa *= Lambda().func0(a/singval[i])
+        fa = fa/V1 - 1.
+        
+        fb = np.prod(singval)
+        for i in range(dim): fb *= Lambda().func0(b/singval[i])
+        fb = fb/V1 - 1.
+    else:
+        fa = np.prod(singval)
+        for i in range(dim-1): fa *= Lambda().func1(a/singval[i])
+        if (branch == 0): fa *= Lambda().func1(a/singval[dim-1]) 
+        else: fa *= Lambda().func2(a/singval[dim-1])
+        fa = fa/V1 - 1.
+        
+        fb = np.prod(singval)
+        for i in range(dim-1): fb *= Lambda().func1(b/singval[i])
+        if (branch == 0): fb *= Lambda().func1(b/singval[dim-1]) 
+        else: fb *= Lambda().func2(b/singval[dim-1])
+        fb = fb/V1 - 1.
+    
+    precb = np.fabs(a)/2. + np.fabs(b)/2.
+    if ((fa > 0. and fb > 0.) or  (fa < 0. and fb < 0.)):
+        print("root isn't bracketed in brent")
+        
+    d = e = np.fabs(b-a)
+    fc = fb
+    for iter in range(brent_itmax):
+        if ((fb > 0. and fc > 0.) or (fb < 0. and fc < 0.)):
+            c = a
+            fc = fa
+            e = d = b-a
+            
+        if (np.fabs(fc) < np.fabs(fb)):
+            a = b
+            b = c
+            c = a
+            
+        tol1 = 2.*brent_prec*np.fabs(precb) + 0.5*brent_acc
+        xm = 0.5*(c-b)
+        if (np.fabs(xm) <= tol1 or fb == 0.): break
+        if (np.fabs(e) >= tol1 and np.fabs(fa) > np.fabs(fb)):
+            s = fb/fa
+            if (a == c):
+                p = 2.*xm*s
+                q = 1.-s
+            else:
+                q = fa/fc
+                r = fb/fc
+                p = s*(2.*xm*q*(q-r)-(b-a)*(r-1.))
+                q=(q-1.)*(r-1.)*(s-1.)
+                
+            if (p > 0.): q = -q
+            p = np.fabs(p)
+            min1 = 3.*xm*q-np.fabs(tol1*q)
+            min2 = np.fabs(e*q)
+                
+            if (2.*p < np.min(min1, min2)):
+                e = d
+                d = p/q
+            else:
+                d = xm
+                e = d
+            
+        else:
+            d = xm
+            e = d
+                
+        a = b
+        fa = fb
+        if (np.fabs(d) > tol1): b += d
+        else: 
+            temp = np.fabs(tol1) if xm>0. else -np.fabs(tol1)
+            b += temp
+            
+        if (branch == -1):
+            fb = np.prod(singval)
+            for i in range(dim): fb *= Lambda().func0(b/singval[i])
+            fb = fb/V1 - 1.
+        else:
+            fb = np.prod(singval)
+            for i in range(dim-1): fb *= Lambda().func1(b/singval[i])
+            if (branch == 0): fb *= Lambda().func1(b/singval[dim-1])
+            else: fb *= Lambda().func2(b/singval[dim-1])
+            fb = fb/V1 - 1.
+          
+    if (iter == brent_itmax): print("too many iterations in root finding!")
+    # switch over to Newton's method
+          
+    if (a > b): 
+        c = a
+        a = b
+        b = c
+        fc = fa
+        fa = fb
+        fb = fc
+    if (fb > fa): dir = 1.
+    else: dir = -1.
+          
+    xx = b
+    ff = fb
+          
+    if (branch == -1):
+        dff = 0.
+        for i in range(dim):
+            dff += Lambda().dfunc0(xx/singval[i])/(singval[i]*Lambda().func0(xx/singval[i]))
+        dff *= ff
+    else:
+        dff = 0.
+        for i in range(dim-1):
+            dff += Lambda().dfunc1(xx/singval[i])/(singval[i]*Lambda().func1(xx/singval[i]))
+        if (branch == 0): dff += Lambda().dfunc1(xx/singval[dim-1])/(singval[dim-1]*Lambda().func1(xx/singval[dim-1]))
+        else: dff += Lambda().dfunc2(xx/singval[dim-1])/(singval[dim-1]*Lambda().func2(xx/singval[dim-1]))
+        dff *= ff
+          
+    if (ff < f_goal): return xx
+          
+    for iter in range(refin_max):
+        dxx = ff/dff
+        xx -= dxx
+        tol1 = 2.*refin_prec*np.fabs(precb) + 0.5*refin_acc
+              
+        if (np.fabs(dxx) < tol1): return xx
+        if (xx < a or xx > b):
+            xx = (a+b)/2.
+            if (branch == -1):
+                ff = np.prod(singval)
+                for i in range(dim): ff *= Lambda().func0(xx/singval[i])
+                ff = ff/V1 - 1.
+                      
+                dff = 0.
+                for i in range(dim): dff += Lambda().dfunc0(xx/singval[i])/(singval[i]*Lambda().func0(xx/singval[i]))
+                dff *= ff
+            else:
+                ff = np.prod(singval)
+                for i in range(dim-1): ff *= Lambda().func1(xx/singval[i])
+                if (branch == 0): ff *= Lambda().func1(xx/singval[dim-1])
+                else: ff *= Lambda().func2(xx/singval[dim-1])
+                ff = ff/V1 - 1.
+                      
+                dff = 0.
+                for i in range(dim-1): dff += Lambda().dfunc1(xx/singval[i])/(singval[i]*Lambda().func1(xx/singval[i]))
+                if (branch == 0): dff += Lambda().dfunc1(xx/singval[dim-1])/(singval[dim-1]*Lambda().func1(xx/singval[dim-1]))
+                else: dff += Lambda().dfunc2(xx/singval[dim-1])/(singval[dim-1]*Lambda().func2(xx/singval[dim-1]))
+                dff *= ff
+                  
+            if (dir*ff > 0.): b = xx
+            else: a = xx
+              
+        else:
+            if (branch == -1):
+                ff = np.prod(singval)
+                for i in range(dim): ff *= singval[i]*Lambda().func0(xx/singval[i])
+                ff = ff/V1 - 1.
+                      
+                dff = 0.
+                for i in range(dim): dff+=Lambda().dfunc0(xx/singval[i])/(singval[i]*Lambda().func0(xx/singval[i]))
+                dff *= ff
+            else:
+                ff = np.prod(singval)
+                for i in range(dim-1): ff *= singval[i]*Lambda().func1(xx/singval[i])
+                if (branch == 0): ff *= singval[dim-1]*Lambda().func1(xx/singval[dim-1])
+                else: ff *= singval[dim-1]*Lambda().func2(xx/singval[dim-1])
+                ff = ff/V1 - 1.
+                      
+                dff = 0.
+                for i in range(dim-1): dff += Lambda().dfunc1(xx/singval[i])/(singval[i]*Lambda().func1(xx/singval[i]))
+                if (branch == 0): dff += Lambda().dfunc1(xx/singval[dim-1])/(singval[dim-1]*Lambda().func1(xx/singval[dim-1]))
+                else: dff += Lambda().dfunc2(xx/singval[dim-1])/(singval[dim-1]*Lambda().func2(xx/singval[dim-1]))
+                dff *= ff
+                  
+            if (dir*ff > 0.): b = xx
+            else: a = xx
+              
+        if (np.fabs(a-b) < tol1): return xx
+          
+    print("too many iterations in newton refinement")
+    return xx
+                  
+                        
+
 def p2():
       # u = M_bar = atwainv . ( Atran . W*in ) in: X
       out = np.matmul(W, in)
@@ -97,17 +309,53 @@ def p2():
       # L = Qinv*M0
       L = np.matmul(Qinv[0:dim][0:dim], u[0:dim][0:dim])
       # U=plu (P), V=plv (R) (Kallus)
-      plu, Sigma, plv = np.linalg.svd(L,full_matrices=False)
+      plu, singval, plv = np.linalg.svd(L,full_matrices=False)
       
       
       # we need to make sure that sigma 从大到小排序
-      detL = np.prod(Sigma)
+      detL = np.prod(singval)
       
-      if (np.fabs(detL) > V1): pass
-      else: pass
+      if (np.fabs(detL) > V1): 
+          for i in range(dim): detL *= Lambda().func1(singval[dim-1]/singval[i])
+          
+          if (np.fabs(detL) > V1):
+              # need to use branch 2 for i=dim-1
+              bracket = 0.
+              
+              while True:
+                  bracket = singval[dim-1] - ((singval[dim-1] - bracket)/2.)
+                  detL = np.prod(singval)
+                  for i in range(dim-1): detL *= Lambda().func1(bracket/singval[i])
+                  detL *= Lambda().func2(bracket/singval[dim-1])
+                  if (np.fabs(detL) < V1): break
+              
+              mu = zbrent(0., bracket, singval, 1)
+              for i in range(dim-1): singval[i] *= Lambda().func1(mu/singval[i])
+              singval[dim-1] *= Lambda().func2(mu/singval[dim-1])
+          else:
+              bracket = 0
+              while True:
+                  bracket = singval[dim-1] - ((singval[dim-1] - bracket)/2.)
+                  detL = np.prod(singval)
+                  for i in range(dim): detL *= Lambda().func1(bracket/singval[i])
+                  if (np.fabs(detL) > V1): break
+              
+              mu = zbrent(0., bracket, singval, 0)
+              for i in range(dim): singval[i] *= Lambda().func1(mu/singval[i])
+      else:
+          bracket = singval[dim-1]/1024.
+          
+          while True:
+              bracket *= 2.
+              detL = np.prod(singval)
+              for i in range(dim): detL *= Lambda().func0(bracket/singval[i])
+              if (np.fabs(detL) < V1): break
+              
+          mu = zbrent(0., bracket, singval, -1)
+          for i in range(dim): singval[i] *= Lambda().func0(mu/singval[i])
       
       # let U0 = Q.P.SINGVAL.R
-      singval = np.diag(Sigma)
+      singval = np.diag(singval)
       temp = np.matmul(singval, plv)
       AtranWin = np.matmul(plu, temp)
       
@@ -136,8 +384,25 @@ def divide():
 def update_A():
     ListClosest()
     
-    A_back = Anew.copy()
+    A_back = Anew.copy() # (nAnew, dim+nB)
+    # x_temp?
     xt = np.matmul(Anew, u) # (nAnew, dim)
+    
+    for k in range(dim+nB): 
+        pass
+      
+    
+    # replace x with xt
+    x, xt = xt, x
+    # replace W with Wnew
+    W, Wnew = Wnew, W
+    # replace A with Anew, nA with nAnew
+    Ad, Anew = Anew, Ad
+    Al, Alnew = Alnew, Al
+    nA = nAnew
+    
+    # set x2 = A . u
+    x2 = np.matmul(Ad, u)
     
     
 def Ltrd():
@@ -266,23 +531,62 @@ def ListClosest():
     """ Gram schimit
     """
     
-    tasks_x[ntasks] = np.zeros(dim)
-    tasks_x[ntasks] -= 1
-    
+    # input: rho0: upper bound on ||x^ - x||
+    # where x^ denote the closest lattice point to x
+    npairs = 0
+    for j in range(nB-nP, 0, -nP):
+        for i in range(j, 0, -nP):
+            # from vnn to vn-1 n-1
+            pair_level[npairs] = dim
+            pair_x[npairs] = g[j+dim] - g[i+dim] # centroid
+            pair_rho[npairs] = roh0
+            # starting index in nB
+            pair_b1[npairs], pair_b2[npairs] = j, i
+            npairs += 1
     
     """
     Our criterion for which replicas to represent is based
     on the difference map’s current concur estimate: we include
     a replica pair for each pair of particles whose centroids in the
-    concur estimate are closer than some cutoff distance."""
+    concur estimate are closer than some cutoff distance """
     nAnew = 0
+    while (npairs > 0):
+        npairs -= 1
+        level = pair_level[npairs]
+        
+        xx[0:level] = pair_x[npairs][0:level]
+
+        x = pair_x[npairs]
+        rho = pair_rho[npairs]
+        p1, p2 = pair_b1[npairs], pair_b2[npairs]
+        
+        
+        
+        if (level > 0):
+            # start from 0
+            k = level - 1
+            xperp = xx[k]
+            vperp = g[k][k] # vnn
+            
+            # xperp (u_n^*||v_perp||)
+            # The indices of these layers are u_n:
+            indice_min = np.ceil((xperp - rho)/vperp)
+            indice_max = np.floor((xperp + rho)/vperp)
+            
+            for indice in range(indice_min, indice_max+1):
+                pair_leve[npairs] = level - 1
+                
+                for i in range(level-1):
+                    pair_x[npairs][i] = xx[i] - indice*g[k][i]
+                
+                pair_rho[npairs] = np.sqrt(rho**2 - (indice*vperp-vperp)**2)
+                
+
     
-    # xperp (u_n^*||v_perp||)
-    # The indices of these layers are u_n:
-    indice_min = np.ceil((xperp - rho)/vperp)
-    indice_max = np.floor((xperp + rho)/vperp)
-    
-    for indice in range(indice_min, indice_max):
+    # 1476-1493: add a pair
+    # p1, p2: particle id of a pair
+    if (p1 != p2):
+
 
     
     
