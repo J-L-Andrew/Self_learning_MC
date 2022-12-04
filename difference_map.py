@@ -297,8 +297,6 @@ def zbrent(l1: np.double, l2: np.double, singval: np.array, branch: np.int):
     print("too many iterations in newton refinement")
     return xx
                   
-                        
-
 def p2():
       # u = M_bar = atwainv . ( Atran . W*in ) in: X
       out = np.matmul(W, in)
@@ -379,7 +377,105 @@ def divide():
     for i in range():
         proj_nonoverlap()
 
+def sortAold():
+    n = nAtosort/(2*nP)
+    if (n < 2): return
+    
+    l = n-1
+    ir = n-1
+    
+    while True:
+        if (l > 0):
+            l -= 1
+            for k in range(dim+nB):
+                rra[k] = 0
+                for m in range(2*nP):
+                    if (rra[k] == 0): rra[k] += np.floor(2*(Altosort[2*nP*l+m][k])+0.5)
+            
+            atemp[0:2*nP][0:dim+nB] = Atosort[2*nP*l:2*nP*(l+1)][0:dim+nB]
+            btemp[0:2*nP][0:dim+nB] = Altosort[2*nP*l:2*nP*(l+1)][0:dim+nB]
+            xtmp[0:2*nP][0:dim] = x[2*nP*l:2*nP*(l+1)][0:dim]
+        
+            Wtemp = W[l]
+        else:
+            for k in range(dim+nB):
+                rra[k] = 0
+                for m in range(2*nP):
+                    if (rra[k] == 0): rra[k] += np.floor(2*(Altosort[2*nP*ir+m][k])+0.5)
+            
+            atemp[0:2*nP][0:dim+nB] = Atosort[2*nP*ir:2*nP*(ir+1)][0:dim+nB]
+            btemp[0:2*nP][0:dim+nB] = Altosort[2*nP*ir:2*nP*(ir+1)][0:dim+nB]
+            xtmp[0:2*nP][0:dim] = x[2*nP*l:2*nP*(ir+1)][0:dim]
+        
+            Wtemp = W[ir]
+            # put Atosort[0] into Atosort[ir]
+            Atosort[2*nP*ir:2*nP*(ir+1)][0:dim+nB] = Atosort[0:2*nP][0:dim+nB]
+            Altosort[2*nP*ir:2*nP*(ir+1)][0:dim+nB] = Altosort[0:2*nP][0:dim+nB]
+            W[ir] = W[0]
+            
+            ir -= 1
+            if (ir == 0):
+                Atosort[0:2*nP][0:dim+nB] = atmp[0:2*nP][0:dim+nB]
+                Altosort[0:2*nP][0:dim+nB] = btmp[0:2*nP][0:dim+nB]
+                x[0:2*nP][0:dim] = xtmp[0:2*nP][0:dim]
+                W[0] = Wtemp
+                break
+        
+        i = l
+        j = l+1
+        while (j <= ir):
+            for k in range(dim+nB):
+                rra1[k] = rra2[k] = 0
+                for m in range(2*nP):
+                    if (rra1[k] == 0): rra1[k] += np.floor(2*(Altosort[2*nP*j+m][k])+0.5)
+                    if (rra2[k] == 0): rra2[k] += np.floor(2*(Altosort[2*nP*(j+1)+m][k])+0.5)
+            
+            comp = 0
+            for k in range(dim+nB-1, -1, -1):
+                if (rra1[k] < rra2[k]): 
+                    comp = -1
+                    break
+                if (rra1[k] > rra2[k]):
+                    comp = 1
+                    break
+            
+            if (j < ir and comp == -1):
+                j += 1
+                rra1[0:dim+nB] = rra2[0:dim+nB]
+            
+            comp = 0
+            for k in range(dim+nB-1, -1, -1):
+                if (rra[k] < rra1[k]): 
+                    comp = -1
+                    break
+                if (rra[k] > rra1[k]):
+                    comp = 1
+                    break
+            
+            if (comp == -1):
+                Atosort[2*nP*i:2*nP*(i+1)][0:dim+nB] = Atosort[2*nP*j:2*nP*(j+1)][0:dim+nB]
+                Altosort[2*nP*i:2*nP*(i+1)][0:dim+nB] = Altosort[2*nP*j:2*nP*(j+1)][0:dim+nB]
+                x[2*nP*i:2*nP*(i+1)][0:dim] = x[2*nP*j:2*nP*(j+1)][0:dim]
+                W[i] = W[j]
+                i = j
+                j <<= 1
+            else: j = ir+1
+            
+        Atosort[2*nP*i:2*nP*(i+1)][0:dim+nB] = atmp[0:2*nP][0:dim+nB]
+        Altosort[2*nP*i:2*nP*(i+1)][0:dim+nB] = btmp[0:2*nP][0:dim+nB]
+        x[2*nP*i:2*nP*(i+1)][0:dim] = xtmp[0:2*nP][0:dim]
+        W[i] = Wtemp      
+                
+                
+                
 
+        
+        
+                
+            
+        
+    
+    
 
 def update_A():
     ListClosest()
