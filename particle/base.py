@@ -28,9 +28,22 @@ class Particle(object):
         self.color = None
     
     def support_func(self, u: np.array):
-        """ particle's support function h(u) = max(x∈K) u · x.
+        """
+        Particle's support function: h(u) = max(K) u . x
+        
+        located in the origin, without rotation by default.
         """
         pass
+    
+    def support_funcs(self, u: np.array):
+        """
+        The support function of a specific particle:
+        
+        Particle's centroid & rotation matrix must be taken into consideration, i.e., 
+        h_i(u) = h(R^T_i*u) + u*r_i
+        """
+        pass
+    
 
     def scaled_centroid(self, lattice):
         """

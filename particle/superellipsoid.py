@@ -1,7 +1,5 @@
 import numpy as np
 from base import Particle
-from pytorch3d import transforms
-from scipy import optimize
 
 class SuperEllipsoid(Particle):
     def __init__(self, a, b, c, p):
@@ -15,9 +13,6 @@ class SuperEllipsoid(Particle):
         self.p = p
         
         self.rot_mat = np.diag(np.ones(self.dim))
-        
-        self.centroid_new = None
-        self.rot_mat_new = None
     
     @property
     def semi_axis(self):
@@ -35,6 +30,7 @@ class SuperEllipsoid(Particle):
         return y
     
     def shapeFund(self, r_l: np.array):
+        """ The first-order derivative of superellipsoid function"""
         dx = np.zeros(self.dim)
         for i in range(self.dim):
             dx[i] = 2.*self.p/self.semi_axis[i]*np.fabs(r_l[i]/self.semi_axis[i])**(2.*self.p-1.)*np.sign(r_l[i])
@@ -42,19 +38,11 @@ class SuperEllipsoid(Particle):
     
     def support_func(self, u: np.array):
         """
-        Particle's support function:
+        Particle's support function: h(u) = max(K) u . x
         
-        located in the origin, without rotation
+        located in the origin, without rotation by default.
         """
-      
-        """
-        Find r_c with its normal vector equals u
-        We should not consider the orientation of a single particle because
-        the rotation is applied to u
-        Adapated from:
-        Yoav Kallus and Veit Elser Dense-packing crystal structures of physical tetrahedra
-        """
-        # SuperballFunctionD(p1, rs1, ra_l, dxt); MatrixMult(Aa, dxt, dxa);
+
         r_u = np.linalg.norm(u)
         # dxt = k*Ru/|u|
         dp = 2.*self.p - 1.
@@ -69,9 +57,12 @@ class SuperEllipsoid(Particle):
         
         return np.dot(r_c, u)
       
-    def supFun(self, u: np.array):
+    def support_funcs(self, u: np.array):
         """
-        The support function of a specific particle
+        The support function of a specific particle:
+        
+        Particle's centroid & rotation matrix must be taken into consideration, i.e., 
+        h_i(u) = h(R^T_i*u) + u*r_i
         """
         y = self.support_func(np.matmul(self.rot_mat.T, u.T).T)
         y += np.dot(u, self.centroid)
@@ -100,88 +91,3 @@ class SuperEllipsoid(Particle):
         tr = np.dot(point, u)
         
         return (tr-self.support_func(u))
-
-"""
-Check whether two particle overlap
-"""
-def delta_h_normalized(u: np.array, p1: SuperEllipsoid, p2: SuperEllipsoid):
-    """ delta_h(u) / ||u|| """
-    y = (p1.supFun(u) + p2.supFun(-u)) / np.linalg.norm(u)
-    return y
-
-def overlap_measure(p1: SuperEllipsoid, p2: SuperEllipsoid):
-    """
-    According to the separating plane theorem.
-    """
-    x0 = np.ones(3)*2.
-    u_c = optimize.minimize(lambda x: delta_h_normalized(x, p1, p2), x0, method='SLSQP')
-    
-    y = delta_h_normalized(u_c, p1, p2)
-    return y
-
-
-def is_overlap(p1: SuperEllipsoid, p2: SuperEllipsoid):
-    """
-    According to the separating plane theorem.
-    """
-    x0 = np.ones(3)*2.
-    u_c = optimize.minimize(lambda x: delta_h_normalized(x, p1, p2), x0, method='SLSQP')
-    
-    y = delta_h_normalized(u_c, p1, p2)
-    if (y <= 0.): return 0
-    else: return 1
-    
-    
-        
-
-def resolve_overlap_new(x: np.array, p1: SuperEllipsoid, p2: SuperEllipsoid):
-    u, v1, v2 = x[0:3], x[3:6], x[6:9]
-    col = u.reshape(-1, 1)
-    row = (v1 - np.matmul(u, p1.rot_mat)).reshape(1, -1)
-    p1.rot_mat_new = p1.rot_mat + np.matmul(col, row) / (np.linalg.norm(u)**2.)
-    row = (v2 - np.matmul(u, p2.rot_mat)).reshape(1, -1)
-    p2.rot_mat_new = p2.rot_mat + np.matmul(col, row) / (np.linalg.norm(u)**2.)
-    
-    r12 = p1.centroid - p2.centroid
-    delta_h = p1.support_func(v1) + p2.support_func(-v2) + np.dot(r12, u)
-    
-    p1.centroid_new = p1.centroid - u*delta_h/2./(np.linalg.norm(u)**2.)
-    p2.centroid_new = p2.centroid + u*delta_h/2./(np.linalg.norm(u)**2.)
-
-def resolve_overlap(x: np.array, p1: SuperEllipsoid, p2: SuperEllipsoid):
-    u, v1, v2 = x[0:3], x[3:6], x[6:9]
-    r12 = p1.centroid - p2.centroid
-    delta_h = p1.support_func(v1) + p2.support_func(-v2) + np.dot(r12, u)
-    
-    p1.centroid -= u*delta_h/2./(np.linalg.norm(u)**2.)
-    p2.centroid += u*delta_h/2./(np.linalg.norm(u)**2.)
-    
-    col = u.reshape(-1, 1)
-    row = (v1 - np.matmul(u, p1.rot_mat)).reshape(1, -1)
-    p1.rot_mat += np.matmul(col, row) / (np.linalg.norm(u)**2.)
-    row = (v2 - np.matmul(u, p2.rot_mat)).reshape(1, -1)
-    p2.rot_mat += np.matmul(col, row) / (np.linalg.norm(u)**2.)
-    
-    # sum = p1.support_func(v1) + np.dot(u, p1.centroid) + p2.support_func(-v2) - np.dot(u, p2.centroid)
-    
-    # print(sum)
-    
-
-def config_dis(x: np.array, p1: SuperEllipsoid, p2: SuperEllipsoid):
-    u, v1, v2 = x[0:3], x[3:6], x[6:9]
-    r12 = p1.centroid - p2.centroid
-    delta_h = p1.support_func(v1) + p2.support_func(-v2) + np.dot(r12, u)
-    
-    y = (delta_h**2.)/2. + np.linalg.norm(np.matmul(p1.rot_mat.T, u)-v1)**2. + np.linalg.norm(np.matmul(p2.rot_mat.T, u)-v2)**2.
-    y /= np.linalg.norm(u)**2.
-    
-    return y
-
-def min_d(p1: SuperEllipsoid, p2: SuperEllipsoid):
-    """
-    """
-    x0 = np.ones(9)*2.
-    res = optimize.minimize(lambda x: config_dis(x, p1, p2), x0, method='SLSQP')
-    
-    resolve_overlap(res.x, p1, p2)
-

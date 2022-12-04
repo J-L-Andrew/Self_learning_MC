@@ -102,7 +102,7 @@ def LLL_star(k: int, l: int, b: np.array, mu: np.array, H: np.array):
     return b, mu, H
 
 
-def LLL(dim: int, inbasis: np.array):
+def LLL_reduction(dim: int, inbasis: np.array):
     """
     Fig. 1. The reduction algorithm. Full
     
