@@ -27,7 +27,59 @@ class Lambda(object):
     def dfunc0(self, x): return 0.5 * x * (1. + np.sqrt(1.+x**2))
     def dfunc1(self, x): return -0.5 * x * (1. + np.sqrt(1.-x**2))
     def dfunc2(self, x): return 0.5 * x * (1. - np.sqrt(1.-x**2))
+
+
+
+def Ltrd():
+    """ Lattice reduction """
+    # H = G  = (G0 0, G1 1)
+    Hd = np.zero(dim+nB, dim+nB) # (dim+nB, dim+nB)
+  
+    # u: (dim+nB, dim)
+    LRrnew[0:nB][0:dim] = u[dim:][:]
+    Hinvd[0:dim][0:dim] = u[0:dim][:]
     
+    u0 = u[dim:][:]
+    u1 = u[0:dim][:]
+    
+    Lattice = u[0:dim][:]
+    Lattice_new, H = LLL(dim, Lattice) # (dim, dim)
+    
+    unew[0:dim][:] = Lattice_new
+    
+    Hd[0:dim][0:dim] = np.double(H) # H: int
+    
+    # To do: how to compute G1
+    
+    
+  
+    
+    Hd[dim:][dim:] = np.diag(np.ones(nB))
+    Hinvd = np.diag(np.ones(dim+nB)) # (dim+nB, dim+nB)
+    
+    Hd[0:dim][0:dim] = np.double(H[0:dim][0:dim])
+    
+    
+    # 1253
+    unew = np.matmul(Hd, u) # (dim+nB, dim)
+    u = unew.copy()
+    
+    # Anew = A.Hinv
+    Anew = np.matmul(Ad, Hinvd) # (nA, dim+nB)
+    # A = Anew
+    Anew, A = A, Anew
+    
+    # LRr_new = H.LRr(old)
+    LRrnew = np.matmul(Hd, LRr)
+    
+    LRr = LRrnew.copy()
+    Al = Ad.copy()
+    
+    sortAold()
+            
+        
+   
+
 
 
 def dm_step():
@@ -469,9 +521,7 @@ def sortAold():
                 
                 
 
-        
-        
-                
+             
             
         
     
@@ -501,50 +551,7 @@ def update_A():
     x2 = np.matmul(Ad, u)
     
     
-def Ltrd():
-    # H = G  = (G0 0, G1 1)
-    Hd = np.zero(dim+nB, dim+nB) # (dim+nB, dim+nB)
-  
-    # u: (dim+nB, dim)
-    LRrnew[0:nB][0:dim] = u[dim:][:]
-    Hinvd[0:dim][0:dim] = u[0:dim][:]
-    
-    u0 = u[dim:][:]
-    u1 = u[0:dim][:]
-    
-    Lattice = u[0:dim][:]
-    Lattice_new, H = LLL(dim, Lattice) # (dim, dim)
-    
-    unew[0:dim][:] = Lattice_new
-    
-    Hd[0:dim][0:dim] = np.double(H) # H: int
-    
-    # To do: how to compute G1
-    
-    
-  
-    
-    Hd[dim:][dim:] = np.diag(np.ones(nB))
-    Hinvd = np.diag(np.ones(dim+nB)) # (dim+nB, dim+nB)
-    
-    Hd[0:dim][0:dim] = np.double(H[0:dim][0:dim])
-    
-    
-    # 1253
-    unew = np.matmul(Hd, u) # (dim+nB, dim)
-    u = unew.copy()
-    
-    # Anew = A.Hinv
-    Anew = np.matmul(Ad, Hinvd) # (nA, dim+nB)
-    # A = Anew
-    Anew, A = A, Anew
-    
-    # LRr_new = H.LRr(old)
-    LRrnew = np.matmul(Hd, LRr)
-    
-    LRr = LRrnew.copy()
-    Al = Ad.copy()
-    
+
 
 def weight_func(pair: np.array):
     """
@@ -681,7 +688,7 @@ def ListClosest():
     
     # 1476-1493: add a pair
     # p1, p2: particle id of a pair
-    if (p1 != p2):
+    if (p1 != p2): pass
 
 
     
@@ -715,8 +722,11 @@ def calc_atwa():
     V1 = V0
     for i in range(dim): V1*=np.sqrt(eigenvalue[i])
 
-    
+
+
+
 if __name__ == '__main__':
     LRr = np.diag(np.ones(dim+nB))
-    pass
+    
+    Ltrd()
     
