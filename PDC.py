@@ -66,10 +66,8 @@ def proj_nonoverlap(pair: np.array):
     return pair_new
 
 
-def divide(x: np.array):
-    # x: (dim+nB, dim)
-    
-    x_new = x.copy()
+def divide(x: np.array): 
+    x_new = x.copy() # (nA, dim)
     for i in range(0, nA, 2*np):
         pair = x[i:i+2*np][:]
         pair_new = proj_nonoverlap(pair)
@@ -426,6 +424,27 @@ def Ltrd():
 """
 Difference map
 """
+def dm_step(x: np.array):
+    err = 0.
+    
+    """ 
+    f_D(X) = (1-1/beta)*pi_D(X) + 1/beta*X = X
+    f_C(X) = (1+1/beta)*pi_C(X) - 1/beta*X = 2*pi_C(X) - X
+    """
+    x1 = divide(x) # pi_D(X)
+    
+    fc = 2.*x1 - x # f_C(X)
+    
+    x2 = concur(fc) # pi_
+    # err <- ||XC - XD||
+    err = np.dot(x1-x2, x1-x2)
+    
+    # iterate X = X + beta*(X_D-X_C)
+    x -= (x1-x2)
+    
+    return x, err/nA
+
+
 def weight_func(pair: np.array, alpha: np.double):
     """
     w(Xc): A function that assigns replica weights based on their 
@@ -466,30 +485,125 @@ def update_weights(W: np.array, x: np.array, tau: np.double):
     return W
 
 
-def dm_step():
-    err = 0.
-    
+def RotOpt():
     """ 
-    f_D(X) = (1-1/beta)*pi_D(X) + 1/beta*X = X
-    f_C(X) = (1+1/beta)*pi_C(X) - 1/beta*X = 2*pi_C(X) - X
+    Algorithm CLOSEPOINT adpated from "Closest Point Search in Lattices".
+    
+    step2: QR decomposition
     """
-    x1 = p1(x) # pi_D(X)
     
-    fc = 2.*x1 - x # f_C(X)
+    # input: (dim+nB)*dim
+    lattice = input[0:dim][:]
     
-    x2 = p2(fc) # pi_
+    h = np.zeros(dim)
+    for i in range(dim): h[i] = i
+
     
-    err = np.dot(x1-x2, x1-x2)
+    uu = np.zeros(dim, dim)
+    for i in range(dim):
+        uu[i][:] = lattice[h[i]][:]
+
+    # Gram schimidt in the order u[h[0]], u[h[1]], ...
+    # gs = Q (orthonormal matrix)
+    gs = np.zeros(dim, dim) # (dim, dim)
+    for i in range(dim):
+        gs[i] = u[h[i]]
+        # gs[k] -= (gs[k].gs[l<k]) gs[l]
+        for j in range(i): gs[i] -= np.dot(u[h[i]], gs[j])*gs[j]
+        
+        # normalized
+        gs[i] /= np.norm.linalg(gs[i])
     
-    # iterate X = X + beta*(X_D-X_C)
-    x -= (x1-x2)
+    # g[0:dim][:] = G3 = G2 * Q^T (lower-triangular matrix)
+    # let x = x * Q^T
+    g = np.matmul(input, gs.T) # (dim+nB, dim)
     
+    return h, g
+
+
+def ListClosest():
+    """
+    Using the generating matrix obtained in the concur projection, find 
+    all replicas to represent
+    """
     
- 
+    # input: rho0: upper bound on ||x^ - x||
+    # where x^ denote the closest lattice point to x
+    npairs = 0
+    for j in range(nB-nP, 0, -nP):
+        for i in range(j, 0, -nP):
+            # from vnn to vn-1 n-1
+            pair_level[npairs] = dim
+            pair_x[npairs] = g[j+dim] - g[i+dim] # centroid
+            pair_rho[npairs] = roh0
+            # starting index in nB
+            pair_b1[npairs], pair_b2[npairs] = j, i
+            npairs += 1
+    
+    """
+    Our criterion for which replicas to represent is based
+    on the difference map's current concur estimate: we include
+    a replica pair for each pair of particles whose centroids in the
+    concur estimate are closer than some cutoff distance """
+    nAnew = 0
+    while (npairs > 0):
+        npairs -= 1
+        level = pair_level[npairs]
+        
+        xx[0:level] = pair_x[npairs][0:level]
+
+        x = pair_x[npairs]
+        rho = pair_rho[npairs]
+        p1, p2 = pair_b1[npairs], pair_b2[npairs]
+        
+        idx[0:dim-level] = pair_idx[npairs][0:dim-level]
+        
+        if (level > 0):
+            # start from 0
+            k = level - 1
+            xperp = xx[k]
+            vperp = g[k][k] # vnn
+            
+            # xperp (u_n^*||v_perp||)
+            # The indices of these layers are u_n:
+            indice_min = np.ceil((xperp - rho)/vperp)
+            indice_max = np.floor((xperp + rho)/vperp)
+            
+            for indice in range(indice_min, indice_max+1):
+                pair_leve[npairs] = level - 1
+                
+                for i in range(level-1):
+                    pair_x[npairs][i] = xx[i] - indice*g[k][i]
+                
+                pair_rho[npairs] = np.sqrt(rho**2 - (indice*vperp-vperp)**2)
+                pair_b1[npairs], pair_b2[npairs] = p1, p2
+                pair_idx[npairs][0] = indice
+                pair_idx[npairs][1:dim-level+1] = idx[0:dim-level]
+                
+                npairs += 1
+        else:
+            for i in range(dim): toadd[perm[i]] = -idx[i]
+            
+            for i in range(dim):
+                if (toadd[i] != 0): break
+                if (p1 != p2 or i != dim):
+                    pass
+                
+                  
+                
+            
+                
+                
+                
+
+    
+    # 1476-1493: add a pair
+    # p1, p2: particle id of a pair
+    if (p1 != p2): pass
 
 
 
-               
+
 
 def sortAold():
     n = nAtosort/(2*nP)
@@ -605,101 +719,6 @@ def update_A():
     x2 = np.matmul(Ad, u)
     
 
-def RotOpt():
-    """ 
-    Algorithm CLOSEPOINT adpated from "Closest Point Search in Lattices".
-    
-    step2: QR decomposition
-    """
-    
-    # input: (dim+nB)*dim
-    lattice = input[0:dim][:]
-    
-    h = np.zeros(dim)
-    for i in range(dim): h[i] = i
-
-    
-    uu = np.zeros(dim, dim)
-    for i in range(dim):
-        uu[i][:] = lattice[h[i]][:]
-
-    # Gram schimidt in the order u[h[0]], u[h[1]], ...
-    # gs = Q (orthonormal matrix)
-    gs = np.zeros(dim, dim) # (dim, dim)
-    for i in range(dim):
-        gs[i] = u[h[i]]
-        # gs[k] -= (gs[k].gs[l<k]) gs[l]
-        for j in range(i): gs[i] -= np.dot(u[h[i]], gs[j])*gs[j]
-        
-        # normalized
-        gs[i] /= np.norm.linalg(gs[i])
-    
-    # g[0:dim][:] = G3 = G2 * Q^T (lower-triangular matrix)
-    # let x = x * Q^T
-    g = np.matmul(input, gs.T) # (dim+nB, dim)
-    
-    return h, g
-
-def ListClosest():
-    """ Gram schimit
-    """
-    
-    # input: rho0: upper bound on ||x^ - x||
-    # where x^ denote the closest lattice point to x
-    npairs = 0
-    for j in range(nB-nP, 0, -nP):
-        for i in range(j, 0, -nP):
-            # from vnn to vn-1 n-1
-            pair_level[npairs] = dim
-            pair_x[npairs] = g[j+dim] - g[i+dim] # centroid
-            pair_rho[npairs] = roh0
-            # starting index in nB
-            pair_b1[npairs], pair_b2[npairs] = j, i
-            npairs += 1
-    
-    """
-    Our criterion for which replicas to represent is based
-    on the difference map’s current concur estimate: we include
-    a replica pair for each pair of particles whose centroids in the
-    concur estimate are closer than some cutoff distance """
-    nAnew = 0
-    while (npairs > 0):
-        npairs -= 1
-        level = pair_level[npairs]
-        
-        xx[0:level] = pair_x[npairs][0:level]
-
-        x = pair_x[npairs]
-        rho = pair_rho[npairs]
-        p1, p2 = pair_b1[npairs], pair_b2[npairs]
-        
-        
-        
-        if (level > 0):
-            # start from 0
-            k = level - 1
-            xperp = xx[k]
-            vperp = g[k][k] # vnn
-            
-            # xperp (u_n^*||v_perp||)
-            # The indices of these layers are u_n:
-            indice_min = np.ceil((xperp - rho)/vperp)
-            indice_max = np.floor((xperp + rho)/vperp)
-            
-            for indice in range(indice_min, indice_max+1):
-                pair_leve[npairs] = level - 1
-                
-                for i in range(level-1):
-                    pair_x[npairs][i] = xx[i] - indice*g[k][i]
-                
-                pair_rho[npairs] = np.sqrt(rho**2 - (indice*vperp-vperp)**2)
-                
-
-    
-    # 1476-1493: add a pair
-    # p1, p2: particle id of a pair
-    if (p1 != p2): pass
-
 
     
     
@@ -708,14 +727,18 @@ def ListClosest():
     
   
   
-def calc_atwa():
-
+def calc_atwa(Anew: np.array):
+    """ Used in Lattice constraint """
     # W is a diagonal matrix whose diagonal elements wi are the metric weights of different replicas
-    # temp = WA
-    temp = np.matmul(W, Ad)
     
-    atwa = np.matmul(Ad.T, temp) # (dim+nB, dim+nB)
-    atwainv = np.linalg.pinv(atwa)
+    # atwa = A^T . (W*A)
+    # Anew = W*A
+    for i in range(nA):
+        for j in range(dim+nB):
+            Anew[i][j] = W[i/(2*nP)]*Ad[i][j]
+    
+    # atwa = A^T . Anew
+    atwa = np.matmul(Anew.T, temp) # (dim+nB, dim+nB)
     
     # temp = (W'11)^-1 * W'10 | (nB, nB)*(nB, dim)
     wtemp = np.linalg.pinv(atwa[dim:][dim:])
@@ -731,6 +754,22 @@ def calc_atwa():
     # let Q = W^-1/2, then V1 (V_target) = V0*det(Q)
     V1 = V0
     for i in range(dim): V1*=np.sqrt(eigenvalue[i])
+    
+    # atwa = A.L.AT, eig_work=atmp=A
+    # Qinv = W^1/2, so Qinv = A.(sqrt(L).AT) = A. (A.sqrt(L))T
+    # (A.sqrt(L)) = Aij sqrt(Lj)
+    for i in range(dim):
+        for j in range(dim):
+            temp[i][j] = np.sqrt(eigs[i])*atmp[(dim+nB)*i+j]
+    
+    Qinv = np.matmul(atmp.T, temp)
+    
+    for i in range(dim):
+        for j in range(dim):
+            temp[i][j] /=eigs[i]
+    Q = np.matmul(atmp.T, temp)
+    
+    return 
 
 
 
@@ -740,3 +779,5 @@ if __name__ == '__main__':
     
     Ltrd()
     update_A()
+    update_weights(W, x, )
+    calc_atwa
