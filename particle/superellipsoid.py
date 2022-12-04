@@ -21,7 +21,26 @@ class SuperEllipsoid(Particle):
     @property
     def volume(self):
         return 4./3.*np.pi*np.cumprod(self.semi_axis)[2]
-      
+
+    @property
+    def inscribed_d(self):
+        """
+        diameter of the outscribed sphere
+        """
+        return np.min(self.semi_axis)
+    
+    @property
+    def outscribed_d(self):
+        """
+        diameter of the outscribed sphere
+        """
+        # Hölder Inequality
+        if (self.p > 1.):
+            k = self.p/(self.p-1.)
+            temp = self.a**(2.*k) + self.b**(2.*k) + self.c**(2.*k)
+            return temp**(1./k)
+        else: return np.max(self.semi_axis)
+    
     def shapeFun(self, r_l: np.array):
         """ Superellipsoid function """
         y = 0.

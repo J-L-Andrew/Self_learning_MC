@@ -78,6 +78,7 @@ def resolve_overlap(x: np.array, K1: Particle, K2: Particle):
 
 def projection(K1: Particle, K2: Particle):
     """
+    make the minimal change possible to the configuration parameters
     """
     x0 = np.ones(9)
     res = optimize.minimize(lambda x: config_dis(x, K1, K2), x0, method='SLSQP')

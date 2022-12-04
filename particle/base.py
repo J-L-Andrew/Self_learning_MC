@@ -27,6 +27,24 @@ class Particle(object):
         # color
         self.color = None
     
+    @property
+    def volume(self):
+        pass
+
+    @property
+    def inscribed_d(self):
+        """
+        diameter of the outscribed sphere
+        """
+        pass
+
+    @property
+    def outscribed_d(self):
+        """
+        diameter of the outscribed sphere
+        """
+        pass
+    
     def support_func(self, u: np.array):
         """
         Particle's support function: h(u) = max(K) u . x
@@ -44,7 +62,6 @@ class Particle(object):
         """
         pass
     
-
     def scaled_centroid(self, lattice):
         """
         Convert absolute centroid to the one in scaled coordinate frame.

@@ -1,11 +1,15 @@
+"""
+* Implementation of the periodic divide and concur (PDC) developped by 
+* Yoav kallus, adapated from 'Method for dense packing discovery'
 
-
-
-
+* The present code is based on the original C version written by Yoav Kallus
+* who kindly provides his code on demand.
+"""
 import numpy as np
 from particle.superellipsoid import *
 from LLL import LLL_reduction
 from exclusion import *
+
 
 # Follow the notation of Kallus
 dim = 3 # d in paper
@@ -16,7 +20,7 @@ nA = 10 # number of rows for matrix A (nA, dim+nB), may change
 replica = [SuperEllipsoid(2., 1., 1., 1.) for i in range(2)]
 
 # here nP=dim+1
-nP = 6 # number of vertices (dim of single particle)
+nP = dim + 1 # number of vertices (dim of single particle)
 
 # Xij for all i != j, we use 2*NUM_REPLICA because 
 NUM_REPLICA = 6
@@ -34,107 +38,24 @@ class Lambda(object):
     def dfunc1(self, x): return -0.5 * x * (1. + np.sqrt(1.-x**2))
     def dfunc2(self, x): return 0.5 * x * (1. - np.sqrt(1.-x**2))
 
-
-
-def Ltrd():
-    """ Lattice reduction """
-    # H = G  = (G0 0, G1 1)
-    Hd = np.zero(dim+nB, dim+nB) # (dim+nB, dim+nB)
-  
-    # u: (dim+nB, dim)
-    LRrnew[0:nB][0:dim] = u[dim:][:]
-    Hinvd[0:dim][0:dim] = u[0:dim][:]
-    
-    u0 = u[dim:][:]
-    u1 = u[0:dim][:]
-    
-    Lattice = u[0:dim][:]
-    Lattice_new, H = LLL(dim, Lattice) # (dim, dim)
-    
-    unew[0:dim][:] = Lattice_new
-    
-    Hd[0:dim][0:dim] = np.double(H) # H: int
-    
-    # To do: how to compute G1
-    
-    
-  
-    
-    Hd[dim:][dim:] = np.diag(np.ones(nB))
-    Hinvd = np.diag(np.ones(dim+nB)) # (dim+nB, dim+nB)
-    
-    Hd[0:dim][0:dim] = np.double(H[0:dim][0:dim])
-    
-    
-    # 1253
-    unew = np.matmul(Hd, u) # (dim+nB, dim)
-    u = unew.copy()
-    
-    # Anew = A.Hinv
-    Anew = np.matmul(Ad, Hinvd) # (nA, dim+nB)
-    # A = Anew
-    Anew, A = A, Anew
-    
-    # LRr_new = H.LRr(old)
-    LRrnew = np.matmul(Hd, LRr)
-    
-    LRr = LRrnew.copy()
-    Al = Ad.copy()
-    
-    sortAold()
-            
-        
-   
-
-
-
-def dm_step():
-    err = 0.
-    
-    """ 
-    f_D(X) = (1-1/beta)*pi_D(X) + 1/beta*X = X
-    f_C(X) = (1+1/beta)*pi_C(X) - 1/beta*X = 2*pi_C(X) - X
-    """
-    x1 = p1(x) # pi_D(X)
-    
-    fc = 2.*x1 - x # f_C(X)
-    
-    x2 = p2(fc) # pi_
-    
-    err = np.dot(x1-x2, x1-x2)
-    
-    # iterate X = X + beta*(X_D-X_C)
-    x -= (x1-x2)
-    
-    
-def p1(x: np.array):
-    # x: (dim+nB, dim)
-    
-    x_new = x.copy()
-    for i in range(0, nA, 2*np):
-        pair = x[i:i+2*np][:]
-        pair_new = proj_nonoverlap(pair)
-        x_new[i:i+2*np][:] = pair_new
-    
-    return x_new
-    
-
+"""
+Divide projections
+"""
 def proj_nonoverlap(pair: np.array):
-    # 输入的in应该是一对颗粒
-    # check centroid-centroid distance
-    # rotation matrix and translation vector (centroid)
-    R1, r1 = pair[0:dim][:], pair[dim][:]
-    R2, r2 = pair[np:2*dim+1][:], pair[2*dim+1][:]
+    """ the divide projection acts independently on each replica pair """
+    # rotation matrix & translation vector (centroid)
+    R1, r1 = pair[0:dim][:], pair[dim][:] # (dim, dim) & (1, dim)
+    R2, r2 = pair[nP:nP+dim][:], pair[nP+dim][:]
     
     pair_new = pair.copy()
-  
+    
+    replica[0].rot_mat, replica[0].centroid = R1, r1
+    replica[1].rot_mat, replica[1].centroid = R2, r2
+
+    # check centroid-centroid distance
     dist = np.linalg.norm(r1 - r2)
-    if (dist < outscribed_D):
-        replica[0].centroid = r1
-        replica[0].rot_mat = R1
-        replica[1].centroid = r2
-        replica[1].rot_mat = R2
-        
+    outscribed_d = (replica[0].outscribed_d + replica[1].outscribed_d)/2.
+    if (dist < outscribed_d):
         delta = overlap_measure(replica[0], replica[1])
         if (delta > 0.): 
             resolve_overlap(replica[0], replica[1])
@@ -144,6 +65,22 @@ def proj_nonoverlap(pair: np.array):
     
     return pair_new
 
+
+def divide(x: np.array):
+    # x: (dim+nB, dim)
+    
+    x_new = x.copy()
+    for i in range(0, nA, 2*np):
+        pair = x[i:i+2*np][:]
+        pair_new = proj_nonoverlap(pair)
+        x_new[i:i+2*np][:] = pair_new
+    
+    return x_new
+
+
+"""
+Concur projections
+"""
 def proj_rigid(single: np.array):
     """ project basis points onto rigid bodies """
     
@@ -159,6 +96,7 @@ def proj_rigid(single: np.array):
     single_new = np.concatenate(Rnew, single[dim])
     
     return single_new
+
 
 def zbrent(l1: np.double, l2: np.double, singval: np.array, branch: np.int):
     """ Brent's method: a root-finding algorithm """
@@ -354,8 +292,9 @@ def zbrent(l1: np.double, l2: np.double, singval: np.array, branch: np.int):
           
     print("too many iterations in newton refinement")
     return xx
-                  
-def p2():
+   
+
+def concur(x: np.array):
       # u = M_bar = atwainv . ( Atran . W*in ) in: X
       out = np.matmul(W, in)
       
@@ -431,9 +370,126 @@ def p2():
       
       return out
 
-def divide():
-    for i in range():
-        proj_nonoverlap()
+
+def Ltrd():
+    """ Lattice reduction """
+    # H = G  = (G0 0, G1 1)
+    Hd = np.zero(dim+nB/nP, dim+nB/nP)
+  
+    # u: (dim+nB, dim)
+    LRrnew[0:nB][0:dim] = u[dim:][:]
+    Hinvd[0:dim][0:dim] = u[0:dim][:]
+    
+    u0 = u[dim:][:]
+    u1 = u[0:dim][:]
+    
+    Lattice = u[0:dim][:]
+    Lattice_new, H = LLL_reduction(dim, Lattice) # (dim, dim)
+    
+    unew[0:dim][:] = Lattice_new
+    
+    Hd[0:dim][0:dim] = np.double(H) # H: int
+    
+    # Todo: dim of Hd (dim+nB/nP, dim)???要改
+    for i in range(dim, dim+nB, np):
+        for j in range(dim):
+            Hd[dim+(i-dim)/np][j] = -np.floor(0.5+LRrnew[0][j+(i-dim)*dim])
+    
+    
+    # To do: how to compute G1
+    
+  
+    Hd[dim:][dim:] = np.diag(np.ones(nB/nP))
+    Hinvd = np.diag(np.ones(dim+nB/nP)) # (dim+nB, dim+nB)
+    
+    Hd[0:dim][0:dim] = np.double(H[0:dim][0:dim])
+    
+    
+    # 1253
+    unew = np.matmul(Hd, u) # (dim+nB, dim)
+    u = unew.copy()
+    
+    # Anew = A.Hinv
+    Anew = np.matmul(Ad, Hinvd) # (nA, dim+nB)
+    # A = Anew
+    Anew, A = A, Anew
+    
+    # LRr_new = H.LRr(old)
+    LRrnew = np.matmul(Hd, LRr)
+    
+    LRr = LRrnew.copy()
+    Al = Ad.copy()
+    
+    sortAold()
+            
+        
+"""
+Difference map
+"""
+def weight_func(pair: np.array, alpha: np.double):
+    """
+    w(Xc): A function that assigns replica weights based on their 
+    configuration in the concur estimate.
+    """
+    # rotation matrix and translation vector (centroid)
+    R1, r1 = pair[0:dim][:], pair[dim][:]
+    R2, r2 = pair[dim+1:2*dim+1][:], pair[2*dim+1][:]
+    
+    replica[0].rot_mat, replica[0].centroid = R1, r1
+    replica[1].rot_mat, replica[1].centroid = R2, r2
+  
+    dist = np.linalg.norm(r1 - r2)
+    outscribed_d = (replica[0].outscribed_d + replica[1].outscribed_d)/2.
+    is_overlap = False
+    if (dist < outscribed_d):
+        delta = overlap_measure(replica[0], replica[1])
+        if (delta > 0.): 
+            is_overlap = True
+            delta_square = delta**2
+            
+            # Todo: ret??
+    
+    inscribed_d = (replica[0].inscribed_d + replica[1].inscribed_d)/2.
+    if (is_overlap): return np.exp(alpha*delta_square)
+    else: 
+        y = (1. + dist**2 - inscribed_d**2)**(-2)
+        return y
+
+
+def update_weights(W: np.array, x: np.array, tau: np.double):
+    """ perform the weight adjustments according to Eq. (47) """
+    for i in range(0, nA, 2*np):
+        pair = x[i:i+2*np][:] # slice first
+        W[i/(2*np)] =  (tau*W[i/(2*np)] + weight_func(pair)) / (tau+1.)
+        
+        # Todo: ret?
+    return W
+
+
+def dm_step():
+    err = 0.
+    
+    """ 
+    f_D(X) = (1-1/beta)*pi_D(X) + 1/beta*X = X
+    f_C(X) = (1+1/beta)*pi_C(X) - 1/beta*X = 2*pi_C(X) - X
+    """
+    x1 = p1(x) # pi_D(X)
+    
+    fc = 2.*x1 - x # f_C(X)
+    
+    x2 = p2(fc) # pi_
+    
+    err = np.dot(x1-x2, x1-x2)
+    
+    # iterate X = X + beta*(X_D-X_C)
+    x -= (x1-x2)
+    
+    
+ 
+
+
+
+               
 
 def sortAold():
     n = nAtosort/(2*nP)
@@ -523,15 +579,7 @@ def sortAold():
         Altosort[2*nP*i:2*nP*(i+1)][0:dim+nB] = btmp[0:2*nP][0:dim+nB]
         x[2*nP*i:2*nP*(i+1)][0:dim] = xtmp[0:2*nP][0:dim]
         W[i] = Wtemp      
-                
-                
-                
-
-             
-            
-        
-    
-    
+                 
 
 def update_A():
     ListClosest()
@@ -556,50 +604,6 @@ def update_A():
     # set x2 = A . u
     x2 = np.matmul(Ad, u)
     
-    
-
-
-def weight_func(pair: np.array):
-    """
-    assigns replica weights based on 
-    their configuration in the concur estimate
-    """
-    
-    # rotation matrix and translation vector (centroid)
-    R1, r1 = pair[0:dim][:], pair[dim][:]
-    R2, r2 = pair[dim+1:2*dim+1][:], pair[2*dim+1][:]
-  
-    dist = np.linalg.norm(r1 - r2)
-    is_overlap = False
-    if (dist < outscribed_D):
-        replica[0].centroid = r1
-        replica[0].rot_mat = R1
-        replica[1].centroid = r2
-        replica[1].rot_mat = R2
-        
-        delta = overlap_measure(replica[0], replica[1])
-        if (delta > 0.): 
-            is_overlap = True
-            delta_square = delta**2
-            
-            # Todo: ret??
-    
-    if (is_overlap): return np.exp(alpha*delta_square)
-    else: 
-        y = (1. + dist**2 - inscribed_D**2)**(-2)
-        return y
-      
-    
-
-
-
-def update_weights(tau: np.double):
-    for i in range(0, nA, 2*np):
-        pair = x[i:i+2*np][:] # slice first
-        W[i/(2*np)] =  (tau*W[i/(2*np)] + weight_func(pair)) / (tau+1.)
-        
-        # Todo: ret?
- 
 
 def RotOpt():
     """ 
@@ -735,4 +739,4 @@ if __name__ == '__main__':
     LRr = np.diag(np.ones(dim+nB))
     
     Ltrd()
-    
+    update_A()
