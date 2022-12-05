@@ -5,6 +5,7 @@
 * The present code is based on the original C version written by Yoav Kallus
 * who kindly provides his code on demand.
 """
+
 import numpy as np
 from particle.superellipsoid import *
 from LLL import LLL_reduction
@@ -67,14 +68,14 @@ def proj_nonoverlap(pair: np.array):
     return pair_new
 
 
-def divide(x: np.array): 
-    x_new = x.copy() # (nA, dim)
+def divide(input: np.array): 
+    out = input.copy() # (nA, dim)
     for i in range(0, nA, 2*np):
-        pair = x[i:i+2*np][:]
+        pair = input[i:i+2*np][:]
         pair_new = proj_nonoverlap(pair)
-        x_new[i:i+2*np][:] = pair_new
+        out[i:i+2*np][:] = pair_new
     
-    return x_new
+    return out
 
 
 #=========================================================================#
@@ -294,18 +295,20 @@ def zbrent(l1: np.double, l2: np.double, singval: np.array, branch: np.int):
     return xx
    
 
-def concur(x: np.array):
-      # u = M_bar = atwainv . ( Atran . W*in ) in: X
-      out = np.matmul(W, in)
+def concur(input: np.array):
       
-      AtranWin = np.matmul(Ad.T, out)
-      u = np.matmul(atwainv, AtranWin)
+      # u = M_bar = atwainv . ( Atran . W*input ) input: X
+      
+      for i in range(nA):
+          out[i] = W[i/(2*nP)]*input[i]
+      
+      AtranWin = np.matmul(Ad.T, out) # (dim+nB, dim)
+      u = np.matmul(atwainv, AtranWin) # (dim+nB, dim)
       
       # L = Qinv*M0
       L = np.matmul(Qinv[0:dim][0:dim], u[0:dim][0:dim])
       # U=plu (P), V=plv (R) (Kallus)
       plu, singval, plv = np.linalg.svd(L,full_matrices=False)
-      
       
       # we need to make sure that sigma 从大到小排序
       detL = np.prod(singval)
@@ -526,7 +529,7 @@ def RotOpt(u: np.array):
     g[0:dim][:] = np.matmul(uu, gs.T)
     g[dim:dim+nB][:] = np.matmul(u[dim:dim+nB][:], gs.T)
     
-    return h, g
+    return g, h
 
 
 def ListClosest(rho0: np.double):
@@ -542,18 +545,31 @@ def ListClosest(rho0: np.double):
     ----------
     g, h
     """
-    h, g = RotOpt()
+    # initilization
+    max_breadth = 100
+    xx = np.zeros(dim)
+    pair_idx = np.zeros(max_breadth*(dim+1), dim)
+    idx = np.zeros(dim)
+    toadd = np.zeros(dim)
+    
+    # perm: coordinate permutations
+    g, perm = RotOpt(u)
     
     # where x^ denote the closest lattice point to x
     npairs = 0
-    for j in range(nB-nP, 0, -nP):
-        for i in range(j, 0, -nP):
+    pair_level = []
+    pair_x = []
+    pair_rho = []
+    pair_b1 = pair_b2 = []
+    for j in range(nB-nP, -1, -nP):
+        for i in range(j, -1, -nP):
             # from vnn to vn-1 n-1
-            pair_level[npairs] = dim
-            pair_x[npairs] = g[j+dim] - g[i+dim] # centroid
-            pair_rho[npairs] = roh0
+            pair_level.append(dim)
+            pair_x.append(-(g[j+dim] - g[i+dim])) # centroid
+            pair_rho.append(rho0)
             # starting index in nB
-            pair_b1[npairs], pair_b2[npairs] = j, i
+            pair_b1.append(j)
+            pair_b2.append(i)
             npairs += 1
     
     """
@@ -565,13 +581,10 @@ def ListClosest(rho0: np.double):
     while (npairs > 0):
         npairs -= 1
         level = pair_level[npairs]
-        
         xx[0:level] = pair_x[npairs][0:level]
 
-        x = pair_x[npairs]
         rho = pair_rho[npairs]
         p1, p2 = pair_b1[npairs], pair_b2[npairs]
-        
         idx[0:dim-level] = pair_idx[npairs][0:dim-level]
         
         if (level > 0):
@@ -586,7 +599,7 @@ def ListClosest(rho0: np.double):
             indice_max = np.floor((xperp + rho)/vperp)
             
             for indice in range(indice_min, indice_max+1):
-                pair_leve[npairs] = level - 1
+                pair_level[npairs] = level - 1
                 
                 for i in range(level-1):
                     pair_x[npairs][i] = xx[i] - indice*g[k][i]
@@ -602,24 +615,21 @@ def ListClosest(rho0: np.double):
             
             for i in range(dim):
                 if (toadd[i] != 0): break
-                if (p1 != p2 or i != dim):
-                    pass
-                
-                  
-                
             
+            if (p1 != p2 or i != dim):
+                for l in range(nP):
+                    Anew[nAnew] = -0.6*toadd
+                    Anew[nAnew][dim:dim+nB] = np.zeros(nB)
+                    Anew[nAnew][2*dim+p1] = 1.
+                    nAnew += 1
                 
+                for l in range(nP):
+                    Anew[nAnew] = 0.4*toadd
+                    Anew[nAnew][dim:dim+nB] = np.zeros(nB)
+                    Anew[nAnew][2*dim+p2] = 1.
+                    nAnew += 1
+    return nAnew
                 
-                
-
-    
-    # 1476-1493: add a pair
-    # p1, p2: particle id of a pair
-    if (p1 != p2): pass
-
-
-
-
 
 def sortAold():
     n = nAtosort/(2*nP)
@@ -711,12 +721,18 @@ def sortAold():
         W[i] = Wtemp      
                  
 
-def update_A():
-    ListClosest()
+def update_A(u: np.array):
+
     
-    A_back = Anew.copy() # (nAnew, dim+nB)
-    # x_temp?
+    olda = np.empty(dim+nB)
+    newa = np.empty(dim+nB)
+    
+    outscribed_d = replica[0].outscribed_d
+    nAnew = ListClosest(outscribed_d)
+    
+    Alnew = Anew.copy() # (nAnew, dim+nB)
     xt = np.matmul(Anew, u) # (nAnew, dim)
+    x2 = xt.copy()
     
     j = i = 0
     if (nA > 0):
@@ -793,15 +809,7 @@ def update_A():
     nA = nAnew
 
     # set x2 = A . u
-    x2 = np.matmul(Ad, u)
-    
-
-
-    
-    
-    
-    # perp: perpendicular???
-    
+    x2 = np.matmul(Ad, u) # (nA, dim)
   
   
 def calc_atwa(Anew: np.array):
@@ -852,7 +860,33 @@ def calc_atwa(Anew: np.array):
 
 
 if __name__ == '__main__':
+    # global declaration
+    max_nA = 400000
+    
+    u = np.empty([dim+nB, dim])
+    x = np.empty([max_nA, dim])
+    x1 = np.empty([max_nA, dim]) # divide projection
+    x2 = np.empty([max_nA, dim]) # concur projection
+    xt = np.empty([max_nA, dim])
+    
+    Ad = np.empty([max_nA, dim+nB])
+    Anew = np.empty([max_nA, dim+nB])
+    Al = np.empty([max_nA, dim+nB])
+    Alnew = np.empty([max_nA, dim+nB])!
+    atwa = np.empty([dim+nB, dim+nB])
+    atwainv = np.empty([dim+nB, dim+nB])
+    Q = np.empty([dim, dim])
+    Qinv = np.empty([dim, dim])
+    mw11iw10 = np.empty([nB, dim])
+    
+    W = np.empty(max_nA)
+    Wnew = np.empty(max_nA)
+    
     maxstep = 500000
+    
+    
+    # initial condition
+    
   
     LRr = np.diag(np.ones(dim+nB))
     
