@@ -376,39 +376,32 @@ def concur(input: np.array):
 
 def Ltrd():
     """ Lattice reduction """
-    # H = G  = (G0 0, G1 1)
+    # H = G = (G0 0, G1 1)
     Hd = np.zero(dim+nB/nP, dim+nB/nP)
   
     # u: (dim+nB, dim)
-    LRrnew[0:nB][0:dim] = u[dim:][:]
-    Hinvd[0:dim][0:dim] = u[0:dim][:]
+    LRrnew[0:nB][0:dim] = u[dim:][:] # u1
+    Hinvd[0:dim][0:dim] = u[0:dim][:] # u0
     
-    u0 = u[dim:][:]
-    u1 = u[0:dim][:]
+    # u1=LRrnew*u0, then unew = 
+    LRrnew[0:nB][0:dim] = np.matmul(LRrnew[0:nB][0:dim], np.linalg.inv(Hinvd[0:dim][0:dim]))
     
     Lattice = u[0:dim][:]
-    Lattice_new, H = LLL_reduction(dim, Lattice) # (dim, dim)
+    unew[0:dim][:], H = LLL_reduction(dim, Lattice) # (dim, dim)
     
-    unew[0:dim][:] = Lattice_new
-    
-    Hd[0:dim][0:dim] = np.double(H) # H: int
+    Hd[0:dim][0:dim] = np.double(H) # G0
     
     # Todo: dim of Hd (dim+nB/nP, dim)???要改
     for i in range(dim, dim+nB, np):
         for j in range(dim):
             Hd[dim+(i-dim)/np][j] = -np.floor(0.5+LRrnew[0][j+(i-dim)*dim])
     
-    
-    # To do: how to compute G1
-    
-  
     Hd[dim:][dim:] = np.diag(np.ones(nB/nP))
     Hinvd = np.diag(np.ones(dim+nB/nP)) # (dim+nB, dim+nB)
     
     Hd[0:dim][0:dim] = np.double(H[0:dim][0:dim])
     
-    
-    # 1253
+    # unew = H.u
     unew = np.matmul(Hd, u) # (dim+nB, dim)
     u = unew.copy()
     
@@ -819,8 +812,7 @@ def calc_atwa(Anew: np.array):
     # atwa = A^T . (W*A)
     # Anew = W*A
     for i in range(nA):
-        for j in range(dim+nB):
-            Anew[i][j] = W[i/(2*nP)]*Ad[i][j]
+        Anew[i][:] = W[i/(2*nP)]*Ad[i][:] # (nA, dim+nB)
     
     # atwa = A^T . Anew
     atwa = np.matmul(Anew.T, temp) # (dim+nB, dim+nB)
@@ -832,20 +824,21 @@ def calc_atwa(Anew: np.array):
     temp = np.matmul(wtemp, atwa[dim:][0:dim]) # (nB, dim)
     
     # atwa2 = W'' = W'00 - W'01*(W'11)^-1 * W'10
-    atwa2 = atwa[0:dim][0:dim] - np.matmul(atwa[0:dim][dim:], temp) # (dim, dim)
+    atmp = atwa
+    atmp[0:dim][0:dim] = atwa[0:dim][0:dim] - np.matmul(atwa[0:dim][dim:], temp) # (dim, dim)
     
-    eigenvalue, featurevector = np.linalg.eig(atwa2)
+    eigs, featurevector = np.linalg.eig(atmp[0:dim+nB][0:dim])
     
     # let Q = W^-1/2, then V1 (V_target) = V0*det(Q)
     V1 = V0
-    for i in range(dim): V1*=np.sqrt(eigenvalue[i])
+    for i in range(dim): V1*=np.sqrt(eigs[i])
     
     # atwa = A.L.AT, eig_work=atmp=A
     # Qinv = W^1/2, so Qinv = A.(sqrt(L).AT) = A. (A.sqrt(L))T
     # (A.sqrt(L)) = Aij sqrt(Lj)
     for i in range(dim):
         for j in range(dim):
-            temp[i][j] = np.sqrt(eigs[i])*atmp[(dim+nB)*i+j]
+            temp[i][j] = np.sqrt(eigs[i])*atmp[i][j]
     
     Qinv = np.matmul(atmp.T, temp)
     
@@ -853,10 +846,6 @@ def calc_atwa(Anew: np.array):
         for j in range(dim):
             temp[i][j] /=eigs[i]
     Q = np.matmul(atmp.T, temp)
-    
-    return 
-
-
 
 
 if __name__ == '__main__':
@@ -886,6 +875,7 @@ if __name__ == '__main__':
     
     
     # initial condition
+    V0 = replica[0].volume*(nB/nP)/efficiency
     
   
     LRr = np.diag(np.ones(dim+nB))
