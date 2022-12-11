@@ -1,5 +1,5 @@
 import numpy as np
-from base import Particle
+from particle.base import Particle
 
 class SuperEllipsoid(Particle):
     def __init__(self, a, b, c, p):

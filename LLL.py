@@ -114,6 +114,7 @@ def LLL_reduction(dim: int, inbasis: np.array):
     Return
     ----------
     basis, H
+    H indicate the lattice translate in local framework
     """
     basis = inbasis.copy() # (dim, dim)
     

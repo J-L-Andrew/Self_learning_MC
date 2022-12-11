@@ -7,6 +7,7 @@
 """
 
 import numpy as np
+from numpy.linalg import norm
 from particle.superellipsoid import *
 from LLL import LLL_reduction
 from utils import Transform
@@ -46,29 +47,20 @@ class Lambda(object):
 
 def proj_nonoverlap(pair: np.array):
     """ the divide projection acts independently on each replica pair """
-    # rotation matrix & translation vector (centroid)
-    R1, r1 = pair[0:dim][:], pair[dim][:] # (dim, dim) & (1, dim)
-    R2, r2 = pair[nP:nP+dim][:], pair[nP+dim][:]
     
+    # rotation matrix & translation vector (centroid)
     pair_new = pair.copy()
     
-    replica[0].rot_mat, replica[0].centroid = R1, r1
-    replica[1].rot_mat, replica[1].centroid = R2, r2
-
     # check centroid-centroid distance
-    dist = np.linalg.norm(r1 - r2)
+    dist = norm(pair[0] - pair[1])
     outscribed_d = (replica[0].outscribed_d + replica[1].outscribed_d)/2.
     if (dist < outscribed_d):
-        delta = overlap_measure(replica[0], replica[1])
-        if (delta > 0.): 
-            resolve_overlap(replica[0], replica[1])
-            
-            pair_new[0:dim][:], pair_new[dim][:] = replica[0].rot_mat, replica[0].centroid
-            pair_new[np:2*dim+1][:], pair_new[2*dim+1][:] = replica[1].rot_mat, replica[1].centroid
+        pair_new[0] += (2.-dist)/2./dist*(pair[0] - pair[1])
+        pair_new[1] -= (2.-dist)/2./dist*(pair[0] - pair[1])
     
     return pair_new
 
-def divide(x_u: np.array, x_r: np.array): 
+def divide(input: np.array): 
     out = input.copy() # (nA, dim)
     for i in range(0, nA, 2*np):
         pair = input[i:i+2*np][:]

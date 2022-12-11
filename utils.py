@@ -84,6 +84,13 @@ class Transform():
             return qua
         elif convention == 'JPL':
             return Ham2JPL(qua)
+    
+    def mat_random(self):
+        """ random rotation matrix"""
+        qua = transforms.random_quaternions(n=1, dtype=torch.double)
+        y = transforms.quaternion_to_matrix(qua)
+
+        return y[0].numpy()
         
 
 def data_scale(unscaled, from_range, to_range):
