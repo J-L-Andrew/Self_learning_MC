@@ -8,25 +8,13 @@
 
 import numpy as np
 from numpy.linalg import norm
-from particle.superellipsoid import *
+from particle.sphere import *
 from LLL import LLL_reduction
 from utils import Transform
 from exclusion import *
 
-
-# Follow the notation of Kallus
-dim = 3 # d in paper
-nB = 4 # p in paper
-nA = 10 # number of rows for matrix A (nA, dim+nB), may change
-
 # a pair of particles
-replica = [SuperEllipsoid(2., 1., 1., 1.) for i in range(2)]
-
-# here nP=dim+1
-nP = dim + 1 # number of vertices (dim of single particle)
-
-# Xij for all i != j, we use 2*NUM_REPLICA because 
-NUM_REPLICA = 6
+replica = [Sphere(1.) for i in range(2)]
 
 class Lambda(object):
     """ still do not understand """
@@ -378,28 +366,34 @@ def concur(input: np.array):
 
 def Ltrd():
     """ Lattice reduction """
+    LRrnew = np.empty([dim+nP, dim+nP])
+    Hinvd = np.empty([dim+nP, dim+nP])
+    unew = np.empty([dim+nP, dim])
+    
     # H = G = (G0 0, G1 1)
-    Hd = np.zero(dim+nP, dim+nP)
+    Hd = np.zeros([dim+nP, dim+nP])
   
-    # u: (dim+nB, dim)
-    LRrnew[0:nB][0:dim] = u[dim:][:] # u1
-    Hinvd[0:dim][0:dim] = u[0:dim][:] # u0
+    # u: (dim+nP, dim)
+    print(nP)
+    print(dim)
+    LRrnew[0:nP,0:dim] = u[dim:,:] # u1
+    Hinvd[0:dim,0:dim] = u[0:dim,:] # u0
     
     # u1=LRrnew*u0, then unew = 
-    LRrnew[0:nP][0:dim] = np.matmul(LRrnew[0:nP][0:dim], np.linalg.inv(Hinvd[0:dim][0:dim]))
+    LRrnew[0:nP,0:dim] = np.matmul(LRrnew[0:nP,0:dim], np.linalg.inv(Hinvd[0:dim,0:dim]))
     
     Lattice = u[0:dim][:]
-    unew[0:dim][:], H = LLL_reduction(dim, Lattice) # (dim, dim)
+    unew[0:dim,:], H = LLL_reduction(dim, Lattice) # (dim, dim)
     
-    Hd[0:dim][0:dim] = np.double(H) # G0
+    Hd[0:dim,0:dim] = np.double(H) # G0
     
     # all primitive particles' centroids: -0.5<=Lambda<0.5
-    for i in range(nP): Hd[dim+i][:] = -np.floor(0.5+LRrnew[i][:])
+    for i in range(nP): Hd[dim+i,:] = -np.floor(0.5+LRrnew[i,:])
     
-    Hd[dim:][dim:] = np.diag(np.ones(nP))
+    Hd[dim:,dim:] = np.diag(np.ones(nP))
     
     Hinvd = np.diag(np.ones(dim+nP)) 
-    Hinvd[0:dim][0:dim] = np.linalg.inv(Hd[0:dim][0:dim])
+    Hinvd[0:dim,0:dim] = np.linalg.inv(Hd[0:dim,0:dim])
     
     # unew = H.u
     unew = np.matmul(Hd, u)
@@ -414,12 +408,27 @@ def Ltrd():
     LRr = LRrnew.copy()
     Al = Ad.copy()
     
-    sortAold(atmp,btmp,xtmp,mida,olda,newa,Ad,Al,nA)
+    Ad, Al, nA = sortAold(Ad,Al,nA)
 
 
 #=========================================================================#
 #  Difference map                                                         #
 #=========================================================================#  
+def initialize(pd_target: np.double):
+    """ start from random initial configurations """
+    np.random.seed()
+    
+    u[0:dim][:] = 0.02*(-0.5 + np.random.random((dim, dim)))
+    for i in range(dim): u[i][i] += 1. # np.cbrt(V0)
+    
+    u[dim:dim+nP][:] = -0.5 + np.random.random((nP, dim))
+    
+    LRr = np.diag(np.ones(dim+nP))
+  
+    V0 = nP*replica[0].volume / pd_target
+    
+    nA = 0
+    
 
 def dm_step(x: np.array):
     err = 0.
@@ -622,7 +631,11 @@ def ListClosest(rho0: np.double):
     return nAnew
                 
 
-def sortAold(atmp: np.array, btmp: np.array, xtmp: np.array, Atosort: np.array, Altosort: np.array, nAtosort: int):
+def sortAold(Atosort: np.array, Altosort: np.array, nAtosort: int):
+    atmp = np.empty([2*nP, dim+nB])
+    btmp = np.empty([2*nP, dim+nB])
+    xtmp = np.empty([2*nP, dim])
+    
     rra = np.array(dim+nB)
     rra1 = np.array(dim+nB)
     rra2 = np.array(dim+nB)
@@ -713,7 +726,9 @@ def sortAold(atmp: np.array, btmp: np.array, xtmp: np.array, Atosort: np.array, 
         Atosort[2*nP*i:2*nP*(i+1)][0:dim+nB] = atmp[0:2*nP][0:dim+nB]
         Altosort[2*nP*i:2*nP*(i+1)][0:dim+nB] = btmp[0:2*nP][0:dim+nB]
         x[2*nP*i:2*nP*(i+1)][0:dim] = xtmp[0:2*nP][0:dim]
-        W[i] = Wtemp      
+        W[i] = Wtemp
+    
+    return Atosort, Altosort, nAtosort  
                  
 
 def update_A():
@@ -853,7 +868,7 @@ def calc_atwa(Anew: np.array):
 if __name__ == '__main__':
     # specify your problem
     dim = 3
-    nP = 5 # number of particles
+    nP = 4 # number of particles
   
   
     # global declaration
@@ -870,51 +885,39 @@ if __name__ == '__main__':
     
     Ad = np.empty([max_nA, dim+nP])
     Anew = np.empty([max_nA, dim+nP])
-    Al = np.empty([max_nA, dim+nB])
-    Alnew = np.empty([max_nA, dim+nB])
-    atwa = np.empty([dim+nB, dim+nB])
-    atwainv = np.empty([dim+nB, dim+nB])
+    Al = np.empty([max_nA, dim+nP])
+    Alnew = np.empty([max_nA, dim+nP])
+    atwa = np.empty([dim+nP, dim+nP])
+    atwainv = np.empty([dim+nP, dim+nP])
     Q = np.empty([dim, dim])
     Qinv = np.empty([dim, dim])
-    mw11iw10 = np.empty([nB, dim])
+    mw11iw10 = np.empty([nP, dim])
     
     W = np.empty(max_nA)
     Wnew = np.empty(max_nA)
     
     maxstep = 500000
     
-    np.random.seed(1)
-    
-    
-    # start from a random initial configuration
-    V0 = replica[0].volume*(nB/nP)/efficiency
-    
-    u[0:dim][:] = 0.02*(-0.5 + np.random.random((dim, dim)))
-    for i in range(dim): u[i][i] += 1. # np.cbrt(V0)
-    
-    u[dim+nP-1:dim+nB:nP][:] = -0.5 + np.random.random((nB/nP, dim))
-    for i in range(nB/nP): u[dim+i*nP:dim+(i+1)*nP][:] = Transform().mat_random()
-    
-    LRr = np.diag(np.ones(dim+nB))
-
-    
+    initialize(0.75)
     Ltrd()
-    update_A()
-    update_weights(W, x, )
-    calc_atwa()
     
-    for i in range(maxstep):
-        err = dm_step(x)
-        if ((i%50) == 49): Ltrd()
-        update_A()
-        update_weights()
-        calc_atwa
+    
+    # update_A()
+    # update_weights(W, x, )
+    # calc_atwa()
+    
+    # for i in range(maxstep):
+    #     err = dm_step(x)
+    #     if ((i%50) == 49): Ltrd()
+    #     update_A()
+    #     update_weights()
+    #     calc_atwa
         
-        if (err < 8.e-11):
-            update_A()
-            err = update_weights()
+    #     if (err < 8.e-11):
+    #         update_A()
+    #         err = update_weights()
             
-            if (err < 8.e-11): break
+    #         if (err < 8.e-11): break
             
     
             

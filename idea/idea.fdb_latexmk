@@ -1,9 +1,9 @@
 # Fdb version 3
-["xdvipdfmx"] 1670825678 "idea.xdv" "idea.pdf" "idea" 1670825678
-  "idea.xdv" 1670825678 4380 be0ae994b9ec07ebfb16a5dd692e2425 "xelatex"
+["xdvipdfmx"] 1670828047 "idea.xdv" "idea.pdf" "idea" 1670828048
+  "idea.xdv" 1670828047 4512 fe1eafdc5ebd5c85bb28d8ca8cf0a636 "xelatex"
   (generated)
   "idea.pdf"
-["xelatex"] 1670825678 "idea.tex" "idea.xdv" "idea" 1670825678
+["xelatex"] 1670828047 "idea.tex" "idea.xdv" "idea" 1670828048
   "/dev/null" 1670314081 0 d41d8cd98f00b204e9800998ecf8427e ""
   "/etc/texmf/web2c/texmf.cnf" 1670299843 475 c0e671620eb5563b2130f56340a5fde8 ""
   "/usr/share/texlive/texmf-dist/fonts/map/fontname/texfonts.map" 1577235249 3524 cb3e574dea2d1052e39280babc910dc8 ""
@@ -90,9 +90,9 @@
   "/usr/share/texmf/tex/latex/lm/t1lmr.fd" 1256929440 1865 afbfccbe7fda9c2dc5078ad7c486bbed ""
   "/usr/share/texmf/web2c/texmf.cnf" 1581979058 38841 ce3692aa899bb693b90b87eaa5d4d84e ""
   "/var/lib/texmf/web2c/xetex/xelatex.fmt" 1670814728 4646299 8d3e90b5522744cc6c874eccfd84ff70 ""
-  "idea.aux" 1670825678 8 a94a2480d3289e625eea47cd1b285758 "xelatex"
-  "idea.tex" 1670825677 2375 aa3d4fb2f6f1d8b056f57c0a2b99e309 ""
+  "idea.aux" 1670828047 8 a94a2480d3289e625eea47cd1b285758 "xelatex"
+  "idea.tex" 1670828047 2455 82fea817f6c8b45b2f8fa8a37bf8ffb9 ""
   (generated)
   "idea.xdv"
-  "idea.aux"
   "idea.log"
+  "idea.aux"
