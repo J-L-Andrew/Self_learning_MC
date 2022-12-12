@@ -1,5 +1,7 @@
 # DensePacking Discovery
 
+nP: number of replica
+
 
 用两个矩阵表示config: u (dim+nP, dim) and r (nP*dim, dim)
 

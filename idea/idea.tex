@@ -1,0 +1,61 @@
+%\documentclass{article}
+%\begin{document}
+%  $k$: constraint
+%\end{document}
+
+
+\documentclass[UTF8,11pt,a4paper]{ctexart}%UTF-8编码，文字大小11，纸张类型A4
+\usepackage[T1]{fontenc}% 加载宏包 fontenc 防止某些符号显示不正常
+
+\usepackage[textwidth=18cm]{geometry} % 设置页宽=18
+%加载数学宏包
+\usepackage{amsmath}
+\usepackage{amssymb}
+%加载插图宏包 graphicx 以在 pdf 中插入图片
+\usepackage{graphicx}
+
+\usepackage{blindtext}
+\usepackage{bm}
+\parindent=2pt
+
+\begin{document}
+\begin{sloppypar} % geometry 宏包命令
+
+  \section*{origin}
+
+  $K$: constraint
+
+  $M$: a generating matrix, with two parts ($M_0$: lattice generator and $M_1$: primitive sphere centers)
+
+  $\Lambda$: a lattice
+
+  \section*{Convex particle}
+
+  A particle $i$ is specifies by $\mathbf{K_i}=(\mathbf{R_i}, \mathbf{r_i})$. A translation by $\mathbf{t}$ is given by $(\mathbf{R_i}, \mathbf{r_i}+\mathbf{t})$. Similarly, a rotation is
+given by convXR, where R is a dd orthogonal matrix. Let $P$ be the set of configuration parameters of any convex particles. 
+We define a generating matrix of the packing as a $(d+(d+1)p)\times d$ matrix $M$ whose first $d$ rows are a set of
+generators of $\Lambda$ and whose remaining rows are the vectors
+in the set $P$. 要注意这里R是按列还是按行，此处默认按列吧。
+
+  For periodic packing, The set of all vertex matrices of
+polytopes in the packing is the Minkowski sum,
+$$\Lambda+P=\left\{\mathbf{b}_0 \mathrm{M}_0+\mathbf{Y}: \mathbf{b}_0 \in \mathbb{Z}^d, \mathbf{Y} \in P\right\}=\left\{\mathbf{b M}: \mathbf{b} \in \mathbb{Z}^d \oplus E_p\right\}
+$$
+\noindent where $M$ ($\mathbf{M_0}$+$\mathbf{R}$+$\mathbf{r}$) is a generating matrix of the packing, 
+and $E_p$ is the set of coordinate permutations of the
+$p$-dimensional vector (1,0,0, . . . ,0).
+
+  For any nondegenerate matrix $M$, only finitely many independent
+exclusion constraints are violated or are even remotely
+close to being violated. We call those constraints
+the relevant exclusion constraints (let there be $n$ of them), and we define 
+a matrix $A$ whose rows $\mathbf{a}_{2i-1}$ and $\mathbf{a}_{2i}$ are the vectors $\mathbf{b_1}$ and 
+$\mathbf{b_2}$ related to the $i$th relevant exclusion
+constraint.
+
+  Exclusion constraint: $K_{2i-1}$ and $K_{2i}$ do not overlap.
+
+  
+
+\end{sloppypar} % geometry 宏包命令
+\end{document}
