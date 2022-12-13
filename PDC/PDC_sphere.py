@@ -8,6 +8,7 @@
 
 import numpy as np
 from numpy.linalg import norm
+from scipy.linalg.lapack import dsyev
 import sys
 sys.path.append(r'/mnt/Edisk/andrew/Self_learning_MC')
 
@@ -461,14 +462,12 @@ def weight_func(pair: np.array, alpha: np.double):
     
     return y
 
-def update_weights(W: np.array, x: np.array, tau: np.double):
+def update_weights():
     """ perform the weight adjustments according to Eq. (47) """
-    for i in range(0, pdc.nA, 2*np):
-        pair = x[i:i+2*np][:] # slice first
-        W[i/(2*np)] =  (tau*W[i/(2*np)] + weight_func(pair, 20)) / (tau+1.)
-        
-        # Todo: ret?
-    return W
+    for i in range(0, pdc.nA, 2):
+        pair = pdc.x2[i:i+2] # slice first
+        id = int(i/2)
+        pdc.W[id] =  (tau*pdc.W[id]+weight_func(pair, 20)) / (tau+1.)
 
 
 #=========================================================================#
@@ -695,47 +694,51 @@ def update_A():
     # set x2 = A . u
     pdc.x2 = np.matmul(pdc.Ad, pdc.u) # (nA, dim)            
 
-def calc_atwa(Anew: np.array):
+def calc_atwa():
     """ Used in Lattice constraint """
     # W is a diagonal matrix whose diagonal elements wi are the metric weights of different replicas
     
-    # atwa = A^T . (W*A)
-    # Anew = W*A
-    for i in range(nA):
-        Anew[i][:] = W[i/(2*nP)]*Ad[i][:] # (nA, dim+nB)
+    # atwa = A^T . (W*A), Anew = W*A
+    for i in range(pdc.nA):
+        pdc.Anew[i,:] = pdc.W[int(i/2)] * pdc.Ad[i,:] # (nA, dim+nB)
     
     # atwa = A^T . Anew
-    atwa = np.matmul(Anew.T, temp) # (dim+nB, dim+nB)
+    pdc.atwa = np.matmul(pdc.Ad.T, pdc.Anew) # (dim+nB, dim+nB)
     
-    # temp = (W'11)^-1 * W'10 | (nB, nB)*(nB, dim)
-    wtemp = np.linalg.pinv(atwa[dim:][dim:])
-    # w' = atwa
-    # i means inverse
-    temp = np.matmul(wtemp, atwa[dim:][0:dim]) # (nB, dim)
+    atmp = pdc.atwa.copy()
+    # atwainv = atwa^-1
+    pdc.atwainv = np.linalg.pinv(pdc.atwa)
     
-    # atwa2 = W'' = W'00 - W'01*(W'11)^-1 * W'10
-    atmp = atwa
-    atmp[0:dim][0:dim] = atwa[0:dim][0:dim] - np.matmul(atwa[0:dim][dim:], temp) # (dim, dim)
+    # let w' = atwa, the wtemp = (W'11)^-1, i.e., (atwa11)^-1
+    wtemp = np.linalg.pinv(pdc.atwa[dim:,dim:])
+    atmp[0:nP,:] = pdc.atwa[dim:,:].copy()
+    # mw11iw10 = -(W'11)^-1 * W'10 | (nB, nB)*(nB, dim)
+    # = - (atwa11)^-1 . atwa10, and i means inverse
+    pdc.mw11iw10[0:nP,0:dim] = -np.matmul(wtemp, atmp[0:nP,0:dim]) # (nB, dim)
     
-    eigs, featurevector = np.linalg.eig(atmp[0:dim+nB][0:dim])
+    # atwa2 = W'' = W'00 - W'01*(W'11)^-1 * W'10 = W'00 - W'01*temp
+    atmp[0:dim,:] = pdc.atwa[0:dim,:].copy() # W'00
+    atmp[0:dim,0:dim] += np.matmul(pdc.atwa[0:dim,dim:], pdc.mw11iw10[0:nP, 0:dim]) # (dim, dim)
+    
+    eigs, featurevector = np.linalg.eig(atmp[0:dim,0:dim])
     
     # let Q = W^-1/2, then V1 (V_target) = V0*det(Q)
-    V1 = V0
+    V1 = pdc.V0
     for i in range(dim): V1*=np.sqrt(eigs[i])
     
     # atwa = A.L.AT, eig_work=atmp=A
     # Qinv = W^1/2, so Qinv = A.(sqrt(L).AT) = A. (A.sqrt(L))T
     # (A.sqrt(L)) = Aij sqrt(Lj)
     for i in range(dim):
-        for j in range(dim):
-            temp[i][j] = np.sqrt(eigs[i])*atmp[i][j]
+        featurevector[i,:] = np.sqrt(eigs[i])*featurevector[i,:]
     
-    Qinv = np.matmul(atmp.T, temp)
+    pdc.Qinv = np.matmul(atmp[0:dim,0:dim].T, featurevector)
     
-    for i in range(dim):
+    print(featurevector)
+    for i in range(dim): 
         for j in range(dim):
-            temp[i][j] /=eigs[i]
-    Q = np.matmul(atmp.T, temp)
+            featurevector[i,j] /= eigs[i]
+    pdc.Q = np.matmul(atmp[0:dim,0:dim].T, featurevector)
 
 def sortAold(Atosort: np.array, Altosort: np.array, nAtosort: int):
     atmp = np.empty([2*nP, dim+nB])
@@ -860,11 +863,10 @@ if __name__ == '__main__':
     Ltrd(True)
     update_A()
     
-    print(pdc.u[0:dim][0:dim])
     plot()
     
-    # update_weights(W, x, )
-    # calc_atwa()
+    update_weights()
+    calc_atwa()
     
     # for i in range(maxstep):
     #     err = dm_step(x)

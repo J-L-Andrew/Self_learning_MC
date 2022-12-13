@@ -8,6 +8,7 @@ from packing import Packing
 dim = 3
 nP = 4 # number of particles
 max_nA = 400000
+tau = 1000
 
 # a pair of particles (unit spheres)
 replica = [Sphere(1.) for i in range(2)]
