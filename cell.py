@@ -2,7 +2,7 @@ import numpy as np
 from utils import surface_area
 
 class Cell(object):
-    def __init__(self, dim, mode):
+    def __init__(self, dim):
         self.dim = dim
         # origin of lattice (located in the origin by default)
         self.origin = None

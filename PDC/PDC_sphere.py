@@ -8,9 +8,13 @@
 
 import numpy as np
 from numpy.linalg import norm
+import sys
+sys.path.append(r'/mnt/Edisk/andrew/Self_learning_MC')
+
 from LLL import LLL_reduction
 from global_sphere import *
-from exclusion import *
+from particle.sphere import *
+from cell import Cell
 
 class Lambda(object):
     """ still do not understand """
@@ -28,7 +32,6 @@ class Lambda(object):
 #=========================================================================#
 #  Divide projections                                                     #
 #=========================================================================#
-
 def proj_nonoverlap(pair: np.array):
     """ the divide projection acts independently on each replica pair """
     
@@ -54,20 +57,9 @@ def divide(input: np.array):
     return out
 
 
-def divide(input: np.array): 
-    out = input.copy() # (nA, dim)
-    for i in range(0, nA, 2*np):
-        pair = input[i:i+2*np][:]
-        pair_new = proj_nonoverlap(pair)
-        out[i:i+2*np][:] = pair_new
-    
-    return out
-
-
 #=========================================================================#
 #  Concur projections                                                     #
 #=========================================================================#
-
 def proj_rigid(single: np.array):
     """ project basis points onto rigid bodies """
     
@@ -83,7 +75,6 @@ def proj_rigid(single: np.array):
     single_new = np.concatenate(Rnew, single[dim])
     
     return single_new
-
 
 def zbrent(l1: np.double, l2: np.double, singval: np.array, branch: int):
     """ Brent's method: a root-finding algorithm """
@@ -280,7 +271,6 @@ def zbrent(l1: np.double, l2: np.double, singval: np.array, branch: int):
     print("too many iterations in newton refinement")
     return xx
    
-
 def concur(input: np.array):
       
       # u = M_bar = atwainv . ( Atran . W*input ) input: X
@@ -359,7 +349,6 @@ def concur(input: np.array):
       
       return out
 
-
 def Ltrd(initial: bool):
     """ Lattice reduction """
     LRrnew = np.empty([dim+nP, dim+nP])
@@ -412,19 +401,32 @@ def Ltrd(initial: bool):
 #=========================================================================#  
 def initialize(pd_target: np.double):
     """ start from random initial configurations """
+    pdc.V0 = nP*replica[0].volume / pd_target
+    
     np.random.seed()
     
     pdc.u[0:dim,:] = 0.02*(-0.5 + np.random.random((dim, dim)))
-    for i in range(dim): pdc.u[i,i] += 1. # np.cbrt(V0)
+    for i in range(dim): pdc.u[i,i] += np.cbrt(pdc.V0)
     
     pdc.u[dim:,:] = -0.5 + np.random.random((nP, dim))
     
     pdc.LRr= np.diag(np.ones(dim+nP))
     
-    # LRr = np.diag(np.ones(dim+nP))
-    pdc.V0 = nP*replica[0].volume / pd_target
+    # For xyz file
+    packing.particle_type = 'sphere'
+    packing.num_particles = nP
     
-
+    # add particles
+    packing.dim = 3
+    packing.particles = [Sphere(1.) for i in range(packing.num_particles)]
+    for i, particle in enumerate(packing.particles):
+        particle.name = 'sphere %d' % i
+        particle.color = np.array([0.51,0.792,0.992])
+    
+    # add cell
+    packing.cell = Cell(packing.dim)
+    packing.cell.color = np.array([0.25,0.25,0.25])
+    
 def dm_step(x: np.array):
     err = 0.
     
@@ -445,72 +447,51 @@ def dm_step(x: np.array):
     
     return x, err/nA
 
-
 def weight_func(pair: np.array, alpha: np.double):
     """
     w(Xc): A function that assigns replica weights based on their 
     configuration in the concur estimate.
     """
-    # rotation matrix and translation vector (centroid)
-    R1, r1 = pair[0:dim][:], pair[dim][:]
-    R2, r2 = pair[dim+1:2*dim+1][:], pair[2*dim+1][:]
-    
-    replica[0].rot_mat, replica[0].centroid = R1, r1
-    replica[1].rot_mat, replica[1].centroid = R2, r2
+    dist = np.linalg.norm(pair[0] - pair[1])
   
-    dist = np.linalg.norm(r1 - r2)
-    outscribed_d = (replica[0].outscribed_d + replica[1].outscribed_d)/2.
-    is_overlap = False
-    if (dist < outscribed_d):
-        delta = overlap_measure(replica[0], replica[1])
-        if (delta > 0.): 
-            is_overlap = True
-            delta_square = delta**2
-            
-            # Todo: ret??
+    if (dist < 2):
+        y = np.exp(alpha*(4-dist**2))
+    else:
+        y = (dist**2 - 3)**(-2-dim/2)
     
-    inscribed_d = (replica[0].inscribed_d + replica[1].inscribed_d)/2.
-    if (is_overlap): return np.exp(alpha*delta_square)
-    else: 
-        y = (1. + dist**2 - inscribed_d**2)**(-2)
-        return y
-
+    return y
 
 def update_weights(W: np.array, x: np.array, tau: np.double):
     """ perform the weight adjustments according to Eq. (47) """
-    for i in range(0, nA, 2*np):
+    for i in range(0, pdc.nA, 2*np):
         pair = x[i:i+2*np][:] # slice first
-        W[i/(2*np)] =  (tau*W[i/(2*np)] + weight_func(pair)) / (tau+1.)
+        W[i/(2*np)] =  (tau*W[i/(2*np)] + weight_func(pair, 20)) / (tau+1.)
         
         # Todo: ret?
     return W
 
 
-def RotOpt(u: np.array):
+#=========================================================================#
+#  Maintenance                                                            #
+#=========================================================================# 
+def RotOpt():
     """ 
     Algorithm CLOSEPOINT adpated from "Closest Point Search in Lattices". step2: QR decomposition
     
-    Parameters
-    ----------
-    u: (dim+nB, dim)
-    
     Return
     ----------
-    g, h
+    g, h(int)
     """
-    lattice = u[0:dim,0:dim]
-    
-    h = np.zeros(dim)
+    h = np.zeros(dim, dtype=int)
     for i in range(dim): h[i] = i
-    h = h.astype(int)
 
     uu = np.zeros([dim, dim])
     # in the order u[h[0]], u[h[1]], ...
     for i in range(dim):
-        uu[i] = lattice[h[i]]
+        uu[i] = pdc.u[h[i]]
 
     # Gram schimidt, gs = Q (orthonormal matrix)
-    gs = np.zeros([dim, dim]) # (dim, dim)
+    gs = np.empty([dim, dim]) # (dim, dim)
     for i in range(dim):
         gs[i] = uu[i]
         # gs[k] -= (gs[k].gs[l<k]) gs[l]
@@ -523,10 +504,9 @@ def RotOpt(u: np.array):
     # let x = x * Q^T
     g = np.zeros([dim+nP, dim])
     g[0:dim,:] = np.matmul(uu, gs.T)
-    g[dim:dim+nP,:] = np.matmul(u[dim:dim+nP,:], gs.T)
+    g[dim:,:] = np.matmul(pdc.u[dim:,:], gs.T)
     
     return g, h
-
 
 def ListClosest(rho0: np.double):
     """
@@ -544,28 +524,31 @@ def ListClosest(rho0: np.double):
     # initilization
     max_breadth = 100
     xx = np.zeros(dim)
-    pair_idx = np.zeros([max_breadth*(dim+1), dim])
-    idx = np.zeros(dim)
-    toadd = np.zeros(dim)
+    idx = np.zeros(dim, dtype=int)
+    toadd = np.empty(dim, dtype=int)
+    
+    pair_idx = np.empty([max_breadth*(dim+1), dim], dtype=int)
+    pair_x = np.empty([max_breadth*(dim+1), dim])
+    pair_level = np.empty(max_breadth*(dim+1), dtype=int)
+    pair_rho = np.empty(max_breadth*(dim+1))
+    pair_b1 = np.empty(max_breadth*(dim+1), dtype=int)
+    pair_b2 = np.empty(max_breadth*(dim+1), dtype=int)
     
     # perm: coordinate permutations
-    g, perm = RotOpt(pdc.u)
+    g, perm = RotOpt()
     
     # where x^ denote the closest lattice point to x
     npairs = 0
-    pair_level = []
-    pair_x = []
-    pair_rho = []
-    pair_b1 = pair_b2 = []
-    for j in range(nP, -1, -1):
+    for j in range(nP-1, -1, -1):
         for i in range(j, -1, -1):
             # from vnn to vn-1 n-1
-            pair_level.append(dim)
-            pair_x.append(-(g[j] - g[i])) # centroid
-            pair_rho.append(rho0)
+            pair_level[npairs] = dim
+            pair_x[npairs,:] = -(g[dim+j] - g[dim+i]) # centroid
+            pair_rho[npairs] = rho0
+
             # starting index in nB
-            pair_b1.append(j)
-            pair_b2.append(i)
+            pair_b1[npairs] = j
+            pair_b2[npairs] = i
             npairs += 1
     
     """
@@ -577,11 +560,11 @@ def ListClosest(rho0: np.double):
     while (npairs > 0):
         npairs -= 1
         level = pair_level[npairs]
-        for i in range(level): xx[i] = pair_x[npairs,i]
+        xx[0:level] = pair_x[npairs,0:level]
 
         rho = pair_rho[npairs]
         p1, p2 = pair_b1[npairs], pair_b2[npairs]
-        for i in range(dim-level): idx[i] = pair_idx[npairs,i]
+        idx[0:dim-level] = pair_idx[npairs,0:dim-level]
         
         if (level > 0):
             # start from 0
@@ -591,8 +574,8 @@ def ListClosest(rho0: np.double):
             
             # xperp (u_n^*||v_perp||)
             # The indices of these layers are u_n:
-            indice_min = np.ceil((xperp - rho)/vperp)
-            indice_max = np.floor((xperp + rho)/vperp)
+            indice_min = int(np.ceil((xperp - rho)/vperp))
+            indice_max = int(np.floor((xperp + rho)/vperp))
             
             for indice in range(indice_min, indice_max+1):
                 pair_level[npairs] = level - 1
@@ -600,7 +583,7 @@ def ListClosest(rho0: np.double):
                 for i in range(level-1):
                     pair_x[npairs,i] = xx[i] - indice*g[k,i]
                 
-                pair_rho[npairs] = np.sqrt(rho**2 - (indice*vperp-vperp)**2)
+                pair_rho[npairs] = np.sqrt(rho**2 - (indice*vperp-xperp)**2)
                 pair_b1[npairs], pair_b2[npairs] = p1, p2
                 pair_idx[npairs,0] = indice
                 pair_idx[npairs,1:dim-level+1] = idx[0:dim-level]
@@ -613,17 +596,146 @@ def ListClosest(rho0: np.double):
                 if (toadd[i] != 0): break
             
             if (p1 != p2 or i != dim):
-                pdc.Anew[nAnew] = -0.6*toadd
+                pdc.Anew[nAnew][0:dim] = -0.6*toadd
                 pdc.Anew[nAnew,dim:dim+nP] = np.zeros(nP)
                 pdc.Anew[nAnew,dim+p1] = 1.
                 nAnew += 1
                 
-                pdc.Anew[nAnew] = 0.4*toadd
+                pdc.Anew[nAnew][0:dim] = 0.4*toadd
                 pdc.Anew[nAnew,dim:dim+nP] = np.zeros(nP)
                 pdc.Anew[nAnew,dim+p2] = 1.
                 nAnew += 1
     return nAnew
-                
+
+def update_A():
+    olda = np.empty(dim+nP, dtype=int)
+    newa = np.empty(dim+nP, dtype=int)
+    
+    outscribed_d = replica[0].outscribed_d
+    nAnew = int(ListClosest(outscribed_d))
+    
+    pdc.Alnew = pdc.Anew.copy() # (nAnew, dim+nB)
+    pdc.xt = np.matmul(pdc.Anew, pdc.u) # (nAnew, dim)
+    pdc.x2 = pdc.xt.copy()
+    
+    j = i = int(0)
+    if (pdc.nA > 0):
+        for k in range(dim+nP):
+            olda[k] = 0
+            for m in range(2):
+                if (olda[k] == 0): olda[k] += np.floor(2*(pdc.Al[2*j+m,k])+0.5)
+            
+            newa[k] = 0
+            for m in range(2):
+                if (newa[k] == 0): newa[k] += np.floor(2*(pdc.Al[2*j+m,k])+0.5)
+    
+    while (True):
+        if (j >= pdc.nA/2 or i >= nAnew/2): break
+        comp = 0
+        for k in range(dim+nP-1, -1, -1):
+            if (olda[k] < newa[k]):
+                comp = -1
+                break
+            if (olda[k] > newa[k]):
+                comp = 1
+                break
+        
+        if (comp == 0):
+            pdc.xt[2*i:2*(i+1)][0:dim] = pdc.x[2*j:2*(j+1),0:dim]
+            pdc.Wnew[i] = pdc.W[j]
+            i += 1
+            if (i >= nAnew/2): break
+            
+            for k in range(dim+nP):
+                newa[k] = 0
+                for m in range(2):
+                    if (newa[k] == 0): newa[k] += np.floor(2*(pdc.Alnew[2*i+m,k])+0.5)
+            
+            j += 1
+            if (j >= nA/2): break
+            
+            for k in range(dim+nP):
+                olda[k] = 0
+                for m in range(2):
+                    if (olda[k] == 0): olda[k] += np.floor(2*(pdc.Al[2*j+m,k])+0.5)
+        
+        elif (comp == -1): # newa > olda
+            j += 1
+            if (j >= nA/2): break
+            for k in range(dim+nP):
+                olda[k] = 0
+                for m in range(2):
+                    if (olda[k] == 0): olda[k] += np.floor(2*(pdc.Al[2*j+m,k])+0.5)
+        
+        else:
+            Wnew[i] = weight_func(pdc.xt[2*i:2*(i+1)], 20)
+            if (Wnew[i] > 1.): Wnew[i] = 1.
+            i += 1
+            if (i >= nAnew/2): break
+            for k in range(dim+nP):
+                newa[k] = 0
+                for m in range(2):
+                    if (newa[k] == 0): newa[k] += np.floor(2*(pdc.Alnew[2*i+m,k])+0.5)
+                    
+    if (i < nAnew/2):
+        for t in range(i, int(nAnew/2)):
+            pdc.Wnew[t] = weight_func(pdc.xt[2*i:2*(i+1)], 20)
+            if (pdc.Wnew[t] > 1.): pdc.Wnew[t] = 1.
+      
+    
+    # replace x with xt
+    pdc.x, pdc.xt = pdc.xt, pdc.x
+    # replace W with Wnew
+    pdc.W, pdc.Wnew = pdc.Wnew, pdc.W
+    # replace A with Anew, nA with nAnew
+    pdc.Ad, pdc.Anew = pdc.Anew, pdc.Ad
+    pdc.Al, pdc.Alnew = pdc.Alnew, pdc.Al
+    pdc.nA = nAnew
+
+    # set x2 = A . u
+    pdc.x2 = np.matmul(pdc.Ad, pdc.u) # (nA, dim)            
+
+def calc_atwa(Anew: np.array):
+    """ Used in Lattice constraint """
+    # W is a diagonal matrix whose diagonal elements wi are the metric weights of different replicas
+    
+    # atwa = A^T . (W*A)
+    # Anew = W*A
+    for i in range(nA):
+        Anew[i][:] = W[i/(2*nP)]*Ad[i][:] # (nA, dim+nB)
+    
+    # atwa = A^T . Anew
+    atwa = np.matmul(Anew.T, temp) # (dim+nB, dim+nB)
+    
+    # temp = (W'11)^-1 * W'10 | (nB, nB)*(nB, dim)
+    wtemp = np.linalg.pinv(atwa[dim:][dim:])
+    # w' = atwa
+    # i means inverse
+    temp = np.matmul(wtemp, atwa[dim:][0:dim]) # (nB, dim)
+    
+    # atwa2 = W'' = W'00 - W'01*(W'11)^-1 * W'10
+    atmp = atwa
+    atmp[0:dim][0:dim] = atwa[0:dim][0:dim] - np.matmul(atwa[0:dim][dim:], temp) # (dim, dim)
+    
+    eigs, featurevector = np.linalg.eig(atmp[0:dim+nB][0:dim])
+    
+    # let Q = W^-1/2, then V1 (V_target) = V0*det(Q)
+    V1 = V0
+    for i in range(dim): V1*=np.sqrt(eigs[i])
+    
+    # atwa = A.L.AT, eig_work=atmp=A
+    # Qinv = W^1/2, so Qinv = A.(sqrt(L).AT) = A. (A.sqrt(L))T
+    # (A.sqrt(L)) = Aij sqrt(Lj)
+    for i in range(dim):
+        for j in range(dim):
+            temp[i][j] = np.sqrt(eigs[i])*atmp[i][j]
+    
+    Qinv = np.matmul(atmp.T, temp)
+    
+    for i in range(dim):
+        for j in range(dim):
+            temp[i][j] /=eigs[i]
+    Q = np.matmul(atmp.T, temp)
 
 def sortAold(Atosort: np.array, Altosort: np.array, nAtosort: int):
     atmp = np.empty([2*nP, dim+nB])
@@ -725,139 +837,20 @@ def sortAold(Atosort: np.array, Altosort: np.array, nAtosort: int):
     return Atosort, Altosort, nAtosort  
                  
 
-def update_A():
+#=========================================================================#
+#  Visualization                                                          #
+#=========================================================================#
+def plot():
+    """ XYZ file """
+    for i, particle in enumerate(packing.particles):
+        particle.centroid = pdc.u[dim+i]
+    
+    packing.cell.lattice = pdc.u[0:dim][:]
 
-    olda = np.empty(dim+nP)
-    newa = np.empty(dim+nP)
-    
-    outscribed_d = replica[0].outscribed_d
-    nAnew = ListClosest(outscribed_d)
-    
-    Alnew = Anew.copy() # (nAnew, dim+nB)
-    xt = np.matmul(Anew, pdc.u) # (nAnew, dim)
-    x2 = xt.copy()
-    
-    j = i = 0
-    if (nA > 0):
-        for k in range(dim+nB):
-            olda[k] = 0
-            for m in range(2*nP):
-                if (olda[k] == 0): olda[k] += np.floor(2*(Al[2*j*nP+m][k])+0.5)
-            
-            newa[k] = 0
-            for m in range(2*nP):
-                if (newa[k] == 0): newa[k] += np.floor(2*(Al[2*j*nP+m][k])+0.5)
-    
-    while (True):
-        if (j >= nA/(2*nP) or i >= nAnew/(2*nP)): break
-        comp = 0
-        for k in range(dim+nB-1, -1, -1):
-            if (olda[k] < newa[k]):
-                comp = -1
-                break
-            if (olda[k] > newa[k]):
-                comp = 1
-                break
-        
-        if (comp == 0):
-            xt[2*nP*i:2*nP*(i+1)][0:dim] = x[2*nP*j:2*nP*(j+1)][0:dim]
-            Wnew[i] = W[j]
-            i += 1
-            if (i >= nAnew/(2*np)): break
-            
-            for k in range(dim+nB):
-                newa[k] = 0
-                for m in range(2*nP):
-                    if (newa[k] == 0): newa[k] += np.floor(2*(Alnew[2*nP*i+m][k])+0.5)
-            
-            j += 1
-            if (j >= nA/(2*nP)): break
-            
-            for k in range(dim+nB):
-                olda[k] = 0
-                for m in range(2*nP):
-                    if (olda[k] == 0): olda[k] += np.floor(2*(Al[2*nP*j+m][k])+0.5)
-        
-        elif (comp == -1): # newa > olda
-            j += 1
-            if (j >= nA/(2*nP)): break
-            for k in range(dim+nB):
-                olda[k] = 0
-                for m in range(2*nP):
-                    if (olda[k] == 0): olda[k] += np.floor(2*(Al[2*nP*j+m][k])+0.5)
-        
-        else:
-            Wnew[i] = weight_func()
-            if (Wnew[i] > 1.): Wnew[i] = 1.
-            i += 1
-            if (i >= nAnew/2*nP): break
-            for k in range(dim+nB):
-                newa[k] = 0
-                for m in range(2*nP):
-                    if (newa[k] == 0): newa[k] += np.floor(2*(Alnew[2*nP*i+m][k])+0.5)
-                    
-    if (i < nAnew/(2*nP)):
-        for t in range(i, nAnew/(2*nP)):
-            Wnew[t] = weight_func()
-            if (Wnew[t] > 1.): Wnew[t] = 1.
-      
-    
-    # replace x with xt
-    x, xt = xt, x
-    # replace W with Wnew
-    W, Wnew = Wnew, W
-    # replace A with Anew, nA with nAnew
-    Ad, Anew = Anew, Ad
-    Al, Alnew = Alnew, Al
-    nA = nAnew
-
-    # set x2 = A . u
-    x2 = np.matmul(Ad, u) # (nA, dim)
+    f = f'config.xyz'
+    packing.output_xyz(f, repeat=False)
   
   
-def calc_atwa(Anew: np.array):
-    """ Used in Lattice constraint """
-    # W is a diagonal matrix whose diagonal elements wi are the metric weights of different replicas
-    
-    # atwa = A^T . (W*A)
-    # Anew = W*A
-    for i in range(nA):
-        Anew[i][:] = W[i/(2*nP)]*Ad[i][:] # (nA, dim+nB)
-    
-    # atwa = A^T . Anew
-    atwa = np.matmul(Anew.T, temp) # (dim+nB, dim+nB)
-    
-    # temp = (W'11)^-1 * W'10 | (nB, nB)*(nB, dim)
-    wtemp = np.linalg.pinv(atwa[dim:][dim:])
-    # w' = atwa
-    # i means inverse
-    temp = np.matmul(wtemp, atwa[dim:][0:dim]) # (nB, dim)
-    
-    # atwa2 = W'' = W'00 - W'01*(W'11)^-1 * W'10
-    atmp = atwa
-    atmp[0:dim][0:dim] = atwa[0:dim][0:dim] - np.matmul(atwa[0:dim][dim:], temp) # (dim, dim)
-    
-    eigs, featurevector = np.linalg.eig(atmp[0:dim+nB][0:dim])
-    
-    # let Q = W^-1/2, then V1 (V_target) = V0*det(Q)
-    V1 = V0
-    for i in range(dim): V1*=np.sqrt(eigs[i])
-    
-    # atwa = A.L.AT, eig_work=atmp=A
-    # Qinv = W^1/2, so Qinv = A.(sqrt(L).AT) = A. (A.sqrt(L))T
-    # (A.sqrt(L)) = Aij sqrt(Lj)
-    for i in range(dim):
-        for j in range(dim):
-            temp[i][j] = np.sqrt(eigs[i])*atmp[i][j]
-    
-    Qinv = np.matmul(atmp.T, temp)
-    
-    for i in range(dim):
-        for j in range(dim):
-            temp[i][j] /=eigs[i]
-    Q = np.matmul(atmp.T, temp)
-
-
 if __name__ == '__main__':
     pdc = pdc()
   
@@ -866,6 +859,10 @@ if __name__ == '__main__':
     initialize(0.75)
     Ltrd(True)
     update_A()
+    
+    print(pdc.u[0:dim][0:dim])
+    plot()
+    
     # update_weights(W, x, )
     # calc_atwa()
     

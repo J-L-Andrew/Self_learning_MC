@@ -1,12 +1,10 @@
 import numpy as np
 from utils import Transform, Ham2JPL
 
-
 class Packing(object):
     """
     combination of multi-particles and cell
     """
-
     def __init__(self):
         # spatial dimension
         self.dim = None
@@ -75,38 +73,51 @@ class Packing(object):
 
     def output_xyz(self, filename, repeat=True):
         """
-        For visulaization in ovito.
-        quaternion: JPL (x, y, z, w)
+        For visulaization in ovito, only access spheres and ellipsoids.
+        
+        Note: quaternion: JPL (x, y, z, w)
         """
         if (repeat):
             centroid = [particle.centroid for particle in self.visable_particles]
-            quaternion = []
-            for particle in self.visable_particles:
-                orientation = Transform().mat2qua(particle.rot_mat, "JPL").numpy()
-                quaternion.append(orientation)
-            semi_axis = [particle.semi_axis for particle in self.visable_particles]
             color = [particle.color for particle in self.visable_particles]
-
             n = len(self.visable_particles)
+            
+            if (self.particle_type == 'ellipsoid'):
+                quaternion = []
+                for particle in self.visable_particles:
+                    orientation = Transform().mat2qua(particle.rot_mat, "JPL").numpy()
+                    quaternion.append(orientation)
+                semi_axis = [particle.semi_axis for particle in self.visable_particles]
+            elif (self.particle_type == 'sphere'):
+                radius = [particle.radius for particle in self.visable_particles]
+
         else:
             centroid = [particle.centroid for particle in self.particles]
-            quaternion = []
-            for particle in self.particles:
-                orientation = Transform().mat2qua(particle.rot_mat, "JPL").numpy()
-                quaternion.append(orientation)
-            semi_axis = [particle.semi_axis for particle in self.particles]
             color = [particle.color for particle in self.particles]
-
             n = len(self.particles)
+            
+            if (self.particle_type == 'ellipsoid'):
+                quaternion = []
+                for particle in self.particles:
+                    orientation = Transform().mat2qua(particle.rot_mat, "JPL").numpy()
+                    quaternion.append(orientation)
+                semi_axis = [particle.semi_axis for particle in self.particles]
+            elif (self.particle_type == 'sphere'):
+                radius = [particle.radius for particle in self.particles]
 
         with open(filename, 'w') as f:
             # The keys should be strings
             f.write(str(n) + '\n')
-            # f.write('Lattice="' + ' '.join([str(vector) for vector in self.cell.lattice.flat]) + '" ')
+            f.write('Lattice="' + ' '.join([str(vector) for vector in self.cell.lattice.flat]) + '" ')
             # f.write('Origin="' + ' '.join(str(index) for index in packing.cell.origin) + '" ')
-            f.write(
-                'Properties=pos:R:3:orientation:R:4:aspherical_shape:R:3:color:R:3 \n'
-            )
-
-            # if (self.particle_type == 'ellipsoid'):
-            np.savetxt(f, np.column_stack([centroid, quaternion, semi_axis, color]))
+            
+            if (self.particle_type == 'ellipsoid'):
+                f.write(
+                    'Properties=pos:R:3:orientation:R:4:aspherical_shape:R:3:color:R:3 \n'
+                )
+                np.savetxt(f, np.column_stack([centroid, quaternion, semi_axis, color]))
+            elif (self.particle_type == 'sphere'):
+                f.write(
+                    'Properties=pos:R:3:radius:R:1:color:R:3 \n'
+                )
+                np.savetxt(f, np.column_stack([centroid, radius, color]))
