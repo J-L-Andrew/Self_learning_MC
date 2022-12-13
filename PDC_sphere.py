@@ -371,13 +371,13 @@ def Ltrd(initial: bool):
     Hd = np.zeros([dim+nP, dim+nP])
   
     # u: (dim+nP, dim)
-    LRrnew[0:nP,0:dim] = u[dim:,:] # u1
-    Hinvd[0:dim,0:dim] = u[0:dim,:] # u0
+    LRrnew[0:nP,0:dim] = pdc.u[dim:,:] # u1
+    Hinvd[0:dim,0:dim] = pdc.u[0:dim,:] # u0
     
     # u1=LRrnew*u0, then unew = 
     LRrnew[0:nP,0:dim] = np.matmul(LRrnew[0:nP,0:dim], np.linalg.inv(Hinvd[0:dim,0:dim]))
     
-    Lattice = u[0:dim][:]
+    Lattice = pdc.u[0:dim][:]
     unew[0:dim,:], H = LLL_reduction(dim, Lattice) # (dim, dim)
     
     Hd[0:dim,0:dim] = np.double(H) # G0
@@ -391,22 +391,21 @@ def Ltrd(initial: bool):
     Hinvd[0:dim,0:dim] = np.linalg.inv(Hd[0:dim,0:dim])
     
     # unew = H.u
-    unew = np.matmul(Hd, u)
+    unew = np.matmul(Hd, pdc.u)
     
     # LRr_new = H.LRr(old)
-    global LRr
-    LRrnew = np.matmul(Hd, LRr)
-    LRr = LRrnew.copy()
+    LRrnew = np.matmul(Hd, pdc.LRr)
+    pdc.LRr = LRrnew.copy()
     
     if (not initial):
         # Anew = A.Hinv
-        Anew = np.matmul(Ad, Hinvd) # (nA, dim+nP)
+        pdc.Anew = np.matmul(pdc.Ad, Hinvd) # (nA, dim+nP)
         # A = Anew
-        Anew, Ad = Ad, Anew
+        pdc.Anew, pdc.Ad = pdc.Ad, pdc.Anew
     
-        Al = Ad.copy()
+        pdc.Al = pdc.Ad.copy()
     
-        Ad, Al, nA = sortAold(Ad, Al, nA)
+        pdc.Ad, pdc.Al, pdc.nA = sortAold(pdc.Ad, pdc.Al, pdc.nA)
 
 
 #=========================================================================#
@@ -500,18 +499,19 @@ def RotOpt(u: np.array):
     ----------
     g, h
     """
-    lattice = u[0:dim][0:dim]
+    lattice = u[0:dim,0:dim]
     
     h = np.zeros(dim)
     for i in range(dim): h[i] = i
+    h = h.astype(int)
 
-    uu = np.zeros(dim, dim)
+    uu = np.zeros([dim, dim])
     # in the order u[h[0]], u[h[1]], ...
     for i in range(dim):
         uu[i] = lattice[h[i]]
 
     # Gram schimidt, gs = Q (orthonormal matrix)
-    gs = np.zeros(dim, dim) # (dim, dim)
+    gs = np.zeros([dim, dim]) # (dim, dim)
     for i in range(dim):
         gs[i] = uu[i]
         # gs[k] -= (gs[k].gs[l<k]) gs[l]
@@ -522,9 +522,9 @@ def RotOpt(u: np.array):
     
     # g[0:dim][:] = G3 = G2 * Q^T (lower-triangular matrix)
     # let x = x * Q^T
-    g = np.zeros(dim+nB, dim)
-    g[0:dim][:] = np.matmul(uu, gs.T)
-    g[dim:dim+nB][:] = np.matmul(u[dim:dim+nB][:], gs.T)
+    g = np.zeros([dim+nP, dim])
+    g[0:dim,:] = np.matmul(uu, gs.T)
+    g[dim:dim+nP,:] = np.matmul(u[dim:dim+nP,:], gs.T)
     
     return g, h
 
@@ -545,12 +545,12 @@ def ListClosest(rho0: np.double):
     # initilization
     max_breadth = 100
     xx = np.zeros(dim)
-    pair_idx = np.zeros(max_breadth*(dim+1), dim)
+    pair_idx = np.zeros([max_breadth*(dim+1), dim])
     idx = np.zeros(dim)
     toadd = np.zeros(dim)
     
     # perm: coordinate permutations
-    g, perm = RotOpt(u)
+    g, perm = RotOpt(pdc.u)
     
     # where x^ denote the closest lattice point to x
     npairs = 0
@@ -558,11 +558,11 @@ def ListClosest(rho0: np.double):
     pair_x = []
     pair_rho = []
     pair_b1 = pair_b2 = []
-    for j in range(nB-nP, -1, -nP):
-        for i in range(j, -1, -nP):
+    for j in range(nP, -1, -1):
+        for i in range(j, -1, -1):
             # from vnn to vn-1 n-1
             pair_level.append(dim)
-            pair_x.append(-(g[j+dim] - g[i+dim])) # centroid
+            pair_x.append(-(g[j] - g[i])) # centroid
             pair_rho.append(rho0)
             # starting index in nB
             pair_b1.append(j)
@@ -578,17 +578,17 @@ def ListClosest(rho0: np.double):
     while (npairs > 0):
         npairs -= 1
         level = pair_level[npairs]
-        xx[0:level] = pair_x[npairs][0:level]
+        for i in range(level): xx[i] = pair_x[npairs,i]
 
         rho = pair_rho[npairs]
         p1, p2 = pair_b1[npairs], pair_b2[npairs]
-        idx[0:dim-level] = pair_idx[npairs][0:dim-level]
+        for i in range(dim-level): idx[i] = pair_idx[npairs,i]
         
         if (level > 0):
             # start from 0
             k = level - 1
             xperp = xx[k]
-            vperp = g[k][k] # vnn
+            vperp = g[k,k] # vnn
             
             # xperp (u_n^*||v_perp||)
             # The indices of these layers are u_n:
@@ -599,12 +599,12 @@ def ListClosest(rho0: np.double):
                 pair_level[npairs] = level - 1
                 
                 for i in range(level-1):
-                    pair_x[npairs][i] = xx[i] - indice*g[k][i]
+                    pair_x[npairs,i] = xx[i] - indice*g[k,i]
                 
                 pair_rho[npairs] = np.sqrt(rho**2 - (indice*vperp-vperp)**2)
                 pair_b1[npairs], pair_b2[npairs] = p1, p2
-                pair_idx[npairs][0] = indice
-                pair_idx[npairs][1:dim-level+1] = idx[0:dim-level]
+                pair_idx[npairs,0] = indice
+                pair_idx[npairs,1:dim-level+1] = idx[0:dim-level]
                 
                 npairs += 1
         else:
@@ -614,17 +614,15 @@ def ListClosest(rho0: np.double):
                 if (toadd[i] != 0): break
             
             if (p1 != p2 or i != dim):
-                for l in range(nP):
-                    Anew[nAnew] = -0.6*toadd
-                    Anew[nAnew][dim:dim+nB] = np.zeros(nB)
-                    Anew[nAnew][2*dim+p1] = 1.
-                    nAnew += 1
+                pdc.Anew[nAnew] = -0.6*toadd
+                pdc.Anew[nAnew,dim:dim+nP] = np.zeros(nP)
+                pdc.Anew[nAnew,dim+p1] = 1.
+                nAnew += 1
                 
-                for l in range(nP):
-                    Anew[nAnew] = 0.4*toadd
-                    Anew[nAnew][dim:dim+nB] = np.zeros(nB)
-                    Anew[nAnew][2*dim+p2] = 1.
-                    nAnew += 1
+                pdc.Anew[nAnew] = 0.4*toadd
+                pdc.Anew[nAnew,dim:dim+nP] = np.zeros(nP)
+                pdc.Anew[nAnew,dim+p2] = 1.
+                nAnew += 1
     return nAnew
                 
 
@@ -730,15 +728,14 @@ def sortAold(Atosort: np.array, Altosort: np.array, nAtosort: int):
 
 def update_A():
 
-    
-    olda = np.empty(dim+nB)
-    newa = np.empty(dim+nB)
+    olda = np.empty(dim+nP)
+    newa = np.empty(dim+nP)
     
     outscribed_d = replica[0].outscribed_d
     nAnew = ListClosest(outscribed_d)
     
     Alnew = Anew.copy() # (nAnew, dim+nB)
-    xt = np.matmul(Anew, u) # (nAnew, dim)
+    xt = np.matmul(Anew, pdc.u) # (nAnew, dim)
     x2 = xt.copy()
     
     j = i = 0
