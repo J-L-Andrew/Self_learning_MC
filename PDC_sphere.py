@@ -8,13 +8,10 @@
 
 import numpy as np
 from numpy.linalg import norm
-from particle.sphere import *
 from LLL import LLL_reduction
 from utils import Transform
+from global_sphere import *
 from exclusion import *
-
-# a pair of particles
-replica = [Sphere(1.) for i in range(2)]
 
 class Lambda(object):
     """ still do not understand """
@@ -364,7 +361,7 @@ def concur(input: np.array):
       return out
 
 
-def Ltrd():
+def Ltrd(initial: bool):
     """ Lattice reduction """
     LRrnew = np.empty([dim+nP, dim+nP])
     Hinvd = np.empty([dim+nP, dim+nP])
@@ -374,8 +371,6 @@ def Ltrd():
     Hd = np.zeros([dim+nP, dim+nP])
   
     # u: (dim+nP, dim)
-    print(nP)
-    print(dim)
     LRrnew[0:nP,0:dim] = u[dim:,:] # u1
     Hinvd[0:dim,0:dim] = u[0:dim,:] # u0
     
@@ -398,17 +393,20 @@ def Ltrd():
     # unew = H.u
     unew = np.matmul(Hd, u)
     
-    # Anew = A.Hinv
-    Anew = np.matmul(Ad, Hinvd) # (nA, dim+nP)
-    # A = Anew
-    Anew, A = A, Anew
-    
     # LRr_new = H.LRr(old)
+    global LRr
     LRrnew = np.matmul(Hd, LRr)
     LRr = LRrnew.copy()
-    Al = Ad.copy()
     
-    Ad, Al, nA = sortAold(Ad,Al,nA)
+    if (not initial):
+        # Anew = A.Hinv
+        Anew = np.matmul(Ad, Hinvd) # (nA, dim+nP)
+        # A = Anew
+        Anew, Ad = Ad, Anew
+    
+        Al = Ad.copy()
+    
+        Ad, Al, nA = sortAold(Ad, Al, nA)
 
 
 #=========================================================================#
@@ -418,16 +416,15 @@ def initialize(pd_target: np.double):
     """ start from random initial configurations """
     np.random.seed()
     
-    u[0:dim][:] = 0.02*(-0.5 + np.random.random((dim, dim)))
-    for i in range(dim): u[i][i] += 1. # np.cbrt(V0)
+    pdc.u[0:dim,:] = 0.02*(-0.5 + np.random.random((dim, dim)))
+    for i in range(dim): pdc.u[i,i] += 1. # np.cbrt(V0)
     
-    u[dim:dim+nP][:] = -0.5 + np.random.random((nP, dim))
+    pdc.u[dim:,:] = -0.5 + np.random.random((nP, dim))
     
-    LRr = np.diag(np.ones(dim+nP))
-  
-    V0 = nP*replica[0].volume / pd_target
+    pdc.LRr= np.diag(np.ones(dim+nP))
     
-    nA = 0
+    # LRr = np.diag(np.ones(dim+nP))
+    pdc.V0 = nP*replica[0].volume / pd_target
     
 
 def dm_step(x: np.array):
@@ -866,43 +863,13 @@ def calc_atwa(Anew: np.array):
 
 
 if __name__ == '__main__':
-    # specify your problem
-    dim = 3
-    nP = 4 # number of particles
+    pdc = pdc()
   
-  
-    # global declaration
-    max_nA = 400000
-    
-    # 
-    u = np.empty([dim+nP, dim])
-    r = np.empty([dim*nP, dim])
-    
-    x = np.empty([max_nA, dim])
-    x1 = np.empty([max_nA, dim]) # divide projection
-    x2 = np.empty([max_nA, dim]) # concur projection
-    xt = np.empty([max_nA, dim])
-    
-    Ad = np.empty([max_nA, dim+nP])
-    Anew = np.empty([max_nA, dim+nP])
-    Al = np.empty([max_nA, dim+nP])
-    Alnew = np.empty([max_nA, dim+nP])
-    atwa = np.empty([dim+nP, dim+nP])
-    atwainv = np.empty([dim+nP, dim+nP])
-    Q = np.empty([dim, dim])
-    Qinv = np.empty([dim, dim])
-    mw11iw10 = np.empty([nP, dim])
-    
-    W = np.empty(max_nA)
-    Wnew = np.empty(max_nA)
-    
     maxstep = 500000
     
     initialize(0.75)
-    Ltrd()
-    
-    
-    # update_A()
+    Ltrd(True)
+    update_A()
     # update_weights(W, x, )
     # calc_atwa()
     
