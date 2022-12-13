@@ -1,4 +1,6 @@
 import numpy as np
+import sys
+sys.path.append(r'/mnt/Edisk/andrew/Self_learning_MC')
 from particle.sphere import *
 
 dim = 3
