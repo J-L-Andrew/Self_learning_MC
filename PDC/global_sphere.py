@@ -9,6 +9,7 @@ dim = 3
 nP = 4 # number of particles
 max_nA = 400000
 tau = 1000
+maxstep = 1e10
 
 # a pair of particles (unit spheres)
 replica = [Sphere(1.) for i in range(2)]
@@ -17,7 +18,10 @@ packing = Packing()
 
 class pdc(object):
     def __init__(self):
+
         self.nA = None
+        self.V0 = None
+        self.V1 = None
         
         self.u = np.empty([dim+nP, dim])
         self.r = np.empty([dim*nP, dim])
@@ -44,6 +48,3 @@ class pdc(object):
         self.Wnew = np.empty(max_nA)
 
         self.LRr = np.empty([dim+nP,dim+nP])
-        
-        self.V0 = None
-        self.V1 = None

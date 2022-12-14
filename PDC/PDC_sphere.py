@@ -94,23 +94,23 @@ def zbrent(l1: np.double, l2: np.double, singval: np.array, branch: int):
     if (branch == -1):
         fa = np.prod(singval)
         for i in range(dim): fa *= Lambda().func0(a/singval[i])
-        fa = fa/V1 - 1.
+        fa = fa/pdc.V1 - 1.
         
         fb = np.prod(singval)
         for i in range(dim): fb *= Lambda().func0(b/singval[i])
-        fb = fb/V1 - 1.
+        fb = fb/pdc.V1 - 1.
     else:
         fa = np.prod(singval)
         for i in range(dim-1): fa *= Lambda().func1(a/singval[i])
         if (branch == 0): fa *= Lambda().func1(a/singval[dim-1]) 
         else: fa *= Lambda().func2(a/singval[dim-1])
-        fa = fa/V1 - 1.
+        fa = fa/pdc.V1 - 1.
         
         fb = np.prod(singval)
         for i in range(dim-1): fb *= Lambda().func1(b/singval[i])
         if (branch == 0): fb *= Lambda().func1(b/singval[dim-1]) 
         else: fb *= Lambda().func2(b/singval[dim-1])
-        fb = fb/V1 - 1.
+        fb = fb/pdc.V1 - 1.
     
     precb = np.fabs(a)/2. + np.fabs(b)/2.
     if ((fa > 0. and fb > 0.) or  (fa < 0. and fb < 0.)):
@@ -169,13 +169,13 @@ def zbrent(l1: np.double, l2: np.double, singval: np.array, branch: int):
         if (branch == -1):
             fb = np.prod(singval)
             for i in range(dim): fb *= Lambda().func0(b/singval[i])
-            fb = fb/V1 - 1.
+            fb = fb/pdc.V1 - 1.
         else:
             fb = np.prod(singval)
             for i in range(dim-1): fb *= Lambda().func1(b/singval[i])
             if (branch == 0): fb *= Lambda().func1(b/singval[dim-1])
             else: fb *= Lambda().func2(b/singval[dim-1])
-            fb = fb/V1 - 1.
+            fb = fb/pdc.V1 - 1.
           
     if (iter == brent_itmax): print("too many iterations in root finding!")
     # switch over to Newton's method
@@ -219,7 +219,7 @@ def zbrent(l1: np.double, l2: np.double, singval: np.array, branch: int):
             if (branch == -1):
                 ff = np.prod(singval)
                 for i in range(dim): ff *= Lambda().func0(xx/singval[i])
-                ff = ff/V1 - 1.
+                ff = ff/pdc.V1 - 1.
                       
                 dff = 0.
                 for i in range(dim): dff += Lambda().dfunc0(xx/singval[i])/(singval[i]*Lambda().func0(xx/singval[i]))
@@ -229,7 +229,7 @@ def zbrent(l1: np.double, l2: np.double, singval: np.array, branch: int):
                 for i in range(dim-1): ff *= Lambda().func1(xx/singval[i])
                 if (branch == 0): ff *= Lambda().func1(xx/singval[dim-1])
                 else: ff *= Lambda().func2(xx/singval[dim-1])
-                ff = ff/V1 - 1.
+                ff = ff/pdc.V1 - 1.
                       
                 dff = 0.
                 for i in range(dim-1): dff += Lambda().dfunc1(xx/singval[i])/(singval[i]*Lambda().func1(xx/singval[i]))
@@ -244,7 +244,7 @@ def zbrent(l1: np.double, l2: np.double, singval: np.array, branch: int):
             if (branch == -1):
                 ff = np.prod(singval)
                 for i in range(dim): ff *= singval[i]*Lambda().func0(xx/singval[i])
-                ff = ff/V1 - 1.
+                ff = ff/pdc.V1 - 1.
                       
                 dff = 0.
                 for i in range(dim): dff+=Lambda().dfunc0(xx/singval[i])/(singval[i]*Lambda().func0(xx/singval[i]))
@@ -254,7 +254,7 @@ def zbrent(l1: np.double, l2: np.double, singval: np.array, branch: int):
                 for i in range(dim-1): ff *= singval[i]*Lambda().func1(xx/singval[i])
                 if (branch == 0): ff *= singval[dim-1]*Lambda().func1(xx/singval[dim-1])
                 else: ff *= singval[dim-1]*Lambda().func2(xx/singval[dim-1])
-                ff = ff/V1 - 1.
+                ff = ff/pdc.V1 - 1.
                       
                 dff = 0.
                 for i in range(dim-1): dff += Lambda().dfunc1(xx/singval[i])/(singval[i]*Lambda().func1(xx/singval[i]))
@@ -281,7 +281,9 @@ def concur(input: np.array):
       pdc.u = np.matmul(pdc.atwainv, AtranWin) # (dim+nP, dim)
       
       # L = Qinv*M0
-      L = np.matmul(pdc.Qinv, pdc.u[0:dim,:]) # (dim, dim)
+      L = np.matmul(pdc.u[0:dim,:].T, pdc.Qinv.T)
+      # To do: what hell is fortran style?
+      #L = np.matmul(pdc.Qinv, pdc.u[0:dim,:]) # (dim, dim)
       # U=plu (P), V=plv (R) (Kallus)
       plu, singval, plv = np.linalg.svd(L,full_matrices=False)
       
@@ -291,7 +293,7 @@ def concur(input: np.array):
       if (np.fabs(detL) > pdc.V1): 
           for i in range(dim): detL *= Lambda().func1(singval[dim-1]/singval[i])
           
-          if (np.fabs(detL) > V1):
+          if (np.fabs(detL) > pdc.V1):
               # need to use branch 2 for i=dim-1
               bracket = 0.
               
@@ -300,7 +302,7 @@ def concur(input: np.array):
                   detL = np.prod(singval)
                   for i in range(dim-1): detL *= Lambda().func1(bracket/singval[i])
                   detL *= Lambda().func2(bracket/singval[dim-1])
-                  if (np.fabs(detL) < V1): break
+                  if (np.fabs(detL) < pdc.V1): break
               
               mu = zbrent(0., bracket, singval, 1)
               for i in range(dim-1): singval[i] *= Lambda().func1(mu/singval[i])
@@ -311,7 +313,7 @@ def concur(input: np.array):
                   bracket = singval[dim-1] - ((singval[dim-1] - bracket)/2.)
                   detL = np.prod(singval)
                   for i in range(dim): detL *= Lambda().func1(bracket/singval[i])
-                  if (np.fabs(detL) > V1): break
+                  if (np.fabs(detL) > pdc.V1): break
               
               mu = zbrent(0., bracket, singval, 0)
               for i in range(dim): singval[i] *= Lambda().func1(mu/singval[i])
@@ -322,79 +324,34 @@ def concur(input: np.array):
               bracket *= 2.
               detL = np.prod(singval)
               for i in range(dim): detL *= Lambda().func0(bracket/singval[i])
-              if (np.fabs(detL) < V1): break
+              if (np.fabs(detL) < pdc.V1): break
               
           mu = zbrent(0., bracket, singval, -1)
           for i in range(dim): singval[i] *= Lambda().func0(mu/singval[i])
       
       # let U0 = Q.P.SINGVAL.R
-      singval = np.diag(singval)
-      temp = np.matmul(singval, plv)
-      AtranWin = np.matmul(plu, temp)
+      for i in range(dim):
+          for j in range(dim):
+              plv[i] *= singval[j]
+
+      AtranWin = np.matmul(plu.T, plv.T) # (dim, dim)
       
       # dU = Q.AtranWin - U
-      plu = np.matmul(Q, temp) - u[0:dim][0:dim]
+      plu = np.matmul(pdc.Q, AtranWin) - pdc.u[0:dim,:]
       
       # then let U1 += (-atwa11inv . atwa10) . (U0 - U0init)
-      u[dim:][:] -= np.matmul(mw11iw1, plu)
+      pdc.u[dim:,:] += np.matmul(pdc.mw11iw10, plu)
       
       # U += dU
-      u += plu
+      pdc.u[0:dim,:] += plu
       
-      for i in range(0, nB, nP): 
-          u[dim+i, dim+i+nP][:] = proj_rigid(u[dim+i, dim+i+nP][:])
+      # Rigidity constraint
+      # for i in range(nP): 
+      #     u[dim+i, dim+i+nP][:] = proj_rigid(u[dim+i, dim+i+nP][:])
       
-      out = np.matmul(Ad, u)
+      out = np.matmul(pdc.Ad[0:pdc.nA,:], pdc.u)
       
       return out
-
-def Ltrd(initial: bool):
-    """ Lattice reduction """
-    LRrnew = np.empty([dim+nP, dim+nP])
-    Hinvd = np.empty([dim+nP, dim+nP])
-    unew = np.empty([dim+nP, dim])
-    # H = G = (G0 0, G1 1)
-    Hd = np.zeros([dim+nP, dim+nP])
-  
-    # u: (dim+nP, dim)
-    LRrnew[0:nP,0:dim] = pdc.u[dim:,:].copy() # u1
-    Hinvd[0:dim,0:dim] = pdc.u[0:dim,:].copy() # u0
-    
-    LRrnew[0:dim,0:nP] = np.matmul(np.linalg.inv(Hinvd[0:dim,0:dim]), LRrnew[0:dim,0:nP])
-    
-    # u1=LRrnew*u0, then unew = 
-    # LRrnew[0:nP,0:dim] = np.matmul(LRrnew[0:nP,0:dim], np.linalg.inv(Hinvd[0:dim,0:dim]))
-    
-    unew[0:dim,:], H = LLL_reduction(dim, pdc.u[0:dim,:]) # (dim, dim)
-    
-    Hd[0:dim,0:dim] = np.double(H) # G0
-    
-    # all primitive particles' centroids: -0.5<=Lambda<0.5
-    for i in range(dim, dim+nP):
-        for j in range(dim):
-            Hd[i,j] = -np.floor(0.5 + LRrnew[i-dim,j])
-    
-    Hd[dim:,dim:] = np.diag(np.ones(nP))
-    
-    Hinvd = np.diag(np.ones(dim+nP)) 
-    Hinvd[0:dim,0:dim] = np.linalg.inv(Hd[0:dim,0:dim])
-    
-    # unew = H.u
-    unew = np.matmul(Hd, pdc.u)
-    pdc.u = unew.copy()
-    
-    # LRr_new = H.LRr(old)
-    LRrnew = np.matmul(Hd, pdc.LRr)
-    pdc.LRr = LRrnew.copy()
-    
-    if (not initial):
-        # Anew = A.Hinv
-        pdc.Anew[0:pdc.nA,:] = np.matmul(pdc.Ad[0:pdc.nA,:], Hinvd) # (nA, dim+nP)
-        # A = Anew
-        pdc.Anew, pdc.Ad = pdc.Ad, pdc.Anew
-    
-        pdc.Al = pdc.Ad.copy()
-        pdc.Ad, pdc.Al, pdc.nA = sortAold(pdc.Ad, pdc.Al, pdc.nA)
 
 
 #=========================================================================#
@@ -438,19 +395,26 @@ def dm_step():
     
     pdc.xt[0:pdc.nA,:] = 2.*pdc.x1[0:pdc.nA,:] - pdc.x[0:pdc.nA,:] # f_C(X)
     
-    pdc.x2 = concur(pdc.xt) # pi_
+    pdc.x2[0:pdc.nA,:] = concur(pdc.xt) # pi_
     # err <- ||XC - XD||
-    err = np.dot(x1-x2, x1-x2)
+    delta = pdc.x1[0:pdc.nA] - pdc.x2[0:pdc.nA]
+    err = np.dot(delta, delta)
+    
+    if (err > pdc.nA*maxstep):
+        pdc.x1[0:pdc.nA] *= np.sqrt(maxstep*pdc.nA/err)
+        err = pdc.nA*maxstep
     
     # iterate X = X + beta*(X_D-X_C)
-    x -= (x1-x2)
+    pdc.x[0:pdc.nA] += delta
     
-    return x, err/nA
+    return err/pdc.nA
 
 def weight_func(pair: np.array, alpha: np.double):
     """
-    w(Xc): A function that assigns replica weights based on their 
+    A function that assigns replica weights based on their 
     configuration in the concur estimate.
+    
+    return: w(Xc) and overlap measure (dist here)
     """
     dist = np.linalg.norm(pair[0] - pair[1])
   
@@ -459,14 +423,17 @@ def weight_func(pair: np.array, alpha: np.double):
     else:
         y = (dist**2 - 3)**(-2-dim/2)
     
-    return y
+    return y, dist
 
 def update_weights():
     """ perform the weight adjustments according to Eq. (47) """
+    ret = 0
     for i in range(0, pdc.nA, 2):
-        pair = pdc.x2[i:i+2] # slice first
-        id = int(i/2)
-        pdc.W[id] = (tau*pdc.W[id] + weight_func(pair, 20)) / (tau+1.)
+        w, s = weight_func(pdc.x2[i:i+2], 20)
+        pdc.W[int(i/2)] = (tau*pdc.W[int(i/2)] + w) / (tau+1.)
+        ret += s
+        
+    return ret
 
 
 #=========================================================================#
@@ -605,6 +572,55 @@ def ListClosest(rho0: np.double):
                 nAnew += 1
     return nAnew
 
+def Ltrd():
+    """ Lattice reduction """
+    LRrnew = np.empty([dim+nP, dim+nP])
+    Hinvd = np.empty([dim+nP, dim+nP])
+    unew = np.empty([dim+nP, dim])
+    # H = G = (G0 0, G1 1)
+    Hd = np.zeros([dim+nP, dim+nP])
+  
+    # u' = H.u LLL-reduced
+    LRrnew[0:nP,0:dim] = pdc.u[dim:,:].copy() # u1
+    Hinvd[0:dim,0:dim] = pdc.u[0:dim,:].copy() # u0
+    
+    LRrnew[0:dim,0:nP] = np.matmul(np.linalg.inv(Hinvd[0:dim,0:dim]), LRrnew[0:dim,0:nP])
+    
+    # u1=LRrnew*u0, then unew = 
+    # LRrnew[0:nP,0:dim] = np.matmul(LRrnew[0:nP,0:dim], np.linalg.inv(Hinvd[0:dim,0:dim]))
+    
+    unew[0:dim,:], H = LLL_reduction(dim, pdc.u[0:dim,:]) # (dim, dim)
+    
+    Hd[0:dim,0:dim] = np.double(H) # G0
+    
+    # all primitive particles' centroids: -0.5<=Lambda<0.5
+    for i in range(dim, dim+nP):
+        for j in range(dim):
+            Hd[i,j] = -np.floor(0.5 + LRrnew[i-dim,j])
+    
+    Hd[dim:,dim:] = np.diag(np.ones(nP))
+    
+    # Hinv = H^-1
+    Hinvd = np.diag(np.ones(dim+nP)) 
+    Hinvd[0:dim,0:dim] = np.linalg.inv(Hd[0:dim,0:dim])
+    
+    # unew = H.u
+    unew = np.matmul(Hd, pdc.u)
+    pdc.u = unew.copy()
+    
+    # Anew = A.Hinv
+    pdc.Anew[0:pdc.nA,:] = np.matmul(pdc.Ad[0:pdc.nA,:], Hinvd) # (nA, dim+nP)
+    # A = Anew
+    pdc.Anew, pdc.Ad = pdc.Ad, pdc.Anew
+    
+    # LRr_new = H.LRr(old)
+    LRrnew = np.matmul(Hd, pdc.LRr)
+    pdc.LRr = LRrnew.copy()
+    
+    pdc.Al[0:pdc.nA,:] = pdc.Ad[0:pdc.nA,:].copy()
+    
+    if (pdc.nA > 2): pdc.Ad, pdc.Al = sortAold(pdc.Ad, pdc.Al, pdc.nA)
+
 def update_A():
     olda = np.empty(dim+nP, dtype=int)
     newa = np.empty(dim+nP, dtype=int)
@@ -666,7 +682,8 @@ def update_A():
                     if (olda[k] == 0): olda[k] += np.floor(2*(pdc.Al[2*j+m,k])+0.5)
         
         else:
-            pdc.Wnew[i] = weight_func(pdc.xt[2*i:2*(i+1)], 20)
+            w, s = weight_func(pdc.xt[2*i:2*(i+1)], 20)
+            pdc.Wnew[i] = w
             if (pdc.Wnew[i] > 1.): pdc.Wnew[i] = 1.
             i += 1
             if (i >= nAnew/2): break
@@ -678,7 +695,8 @@ def update_A():
     # broken without populating Anew entirely               
     if (i < nAnew/2):
         for t in range(i, int(nAnew/2)):
-            pdc.Wnew[t] = weight_func(pdc.xt[2*i:2*(i+1)], 20)
+            w, s = weight_func(pdc.xt[2*i:2*(i+1)], 20)
+            pdc.Wnew[t] = w
             if (pdc.Wnew[t] > 1.): pdc.Wnew[t] = 1.
       
     # replace x with xt
@@ -739,16 +757,11 @@ def calc_atwa():
     pdc.Q = np.matmul(atmp[0:dim,0:dim].T, featurevector)
 
 def sortAold(Atosort: np.array, Altosort: np.array, nAtosort: int):
-    atmp = np.empty([2*nP, dim+nB])
-    btmp = np.empty([2*nP, dim+nB])
-    xtmp = np.empty([2*nP, dim])
+    rra = np.empty(dim+nP)
+    rra1 = np.empty(dim+nP)
+    rra2 = np.empty(dim+nP)
     
-    rra = np.array(dim+nB)
-    rra1 = np.array(dim+nB)
-    rra2 = np.array(dim+nB)
-    
-    n = nAtosort/(2*nP)
-    if (n < 2): return
+    n = int(nAtosort/2)
     
     l = n-1
     ir = n-1
@@ -756,51 +769,52 @@ def sortAold(Atosort: np.array, Altosort: np.array, nAtosort: int):
     while True:
         if (l > 0):
             l -= 1
-            for k in range(dim+nB):
+            for k in range(dim+nP):
                 rra[k] = 0
-                for m in range(2*nP):
-                    if (rra[k] == 0): rra[k] += np.floor(2*(Altosort[2*nP*l+m][k])+0.5)
+                for m in range(2):
+                    if (rra[k] == 0): rra[k] += np.floor(2*(Altosort[2*l+m,k])+0.5)
             
-            atmp[0:2*nP][0:dim+nB] = Atosort[2*nP*l:2*nP*(l+1)][0:dim+nB]
-            btmp[0:2*nP][0:dim+nB] = Altosort[2*nP*l:2*nP*(l+1)][0:dim+nB]
-            xtmp[0:2*nP][0:dim] = x[2*nP*l:2*nP*(l+1)][0:dim]
+            atmp = Atosort[2*l:2*(l+1),:]
+            btmp = Altosort[2*l:2*(l+1),:]
+            xtmp = pdc.x[2*l:2*(l+1),:]
         
-            Wtemp = W[l]
+            Wtemp = pdc.W[l]
         else:
-            for k in range(dim+nB):
+            for k in range(dim+nP):
                 rra[k] = 0
-                for m in range(2*nP):
-                    if (rra[k] == 0): rra[k] += np.floor(2*(Altosort[2*nP*ir+m][k])+0.5)
+                for m in range(2):
+                    if (rra[k] == 0): rra[k] += np.floor(2*(Altosort[2*ir+m,k])+0.5)
             
-            atmp[0:2*nP][0:dim+nB] = Atosort[2*nP*ir:2*nP*(ir+1)][0:dim+nB]
-            btmp[0:2*nP][0:dim+nB] = Altosort[2*nP*ir:2*nP*(ir+1)][0:dim+nB]
-            xtmp[0:2*nP][0:dim] = x[2*nP*l:2*nP*(ir+1)][0:dim]
+            atmp = Atosort[2*ir:2*nP*(ir+1),:]
+            btmp = Altosort[2*ir:2*nP*(ir+1),:]
+            xtmp = pdc.x[2*l:2*nP*(ir+1),:]
         
-            Wtemp = W[ir]
+            Wtemp = pdc.W[ir]
             # put Atosort[0] into Atosort[ir]
-            Atosort[2*nP*ir:2*nP*(ir+1)][0:dim+nB] = Atosort[0:2*nP][0:dim+nB]
-            Altosort[2*nP*ir:2*nP*(ir+1)][0:dim+nB] = Altosort[0:2*nP][0:dim+nB]
-            W[ir] = W[0]
+            Atosort[2*ir:2*(ir+1),:] = Atosort[0:2,:]
+            Altosort[2*ir:2*(ir+1),:] = Altosort[0:2,:]
+            pdc.x[2*ir:2*(ir+1),:] = pdc.x[0:2,:]
+            pdc.W[ir] = pdc.W[0]
             
             ir -= 1
             if (ir == 0):
-                Atosort[0:2*nP][0:dim+nB] = atmp[0:2*nP][0:dim+nB]
-                Altosort[0:2*nP][0:dim+nB] = btmp[0:2*nP][0:dim+nB]
-                x[0:2*nP][0:dim] = xtmp[0:2*nP][0:dim]
-                W[0] = Wtemp
+                Atosort[0:2,:] = atmp
+                Altosort[0:2,:] = btmp
+                pdc.x[0:2*nP][0:dim] = xtmp
+                pdc.W[0] = Wtemp
                 break
         
         i = l
         j = l+1
         while (j <= ir):
-            for k in range(dim+nB):
+            for k in range(dim+nP):
                 rra1[k] = rra2[k] = 0
-                for m in range(2*nP):
-                    if (rra1[k] == 0): rra1[k] += np.floor(2*(Altosort[2*nP*j+m][k])+0.5)
-                    if (rra2[k] == 0): rra2[k] += np.floor(2*(Altosort[2*nP*(j+1)+m][k])+0.5)
+                for m in range(2):
+                    if (rra1[k] == 0): rra1[k] += np.floor(2*(Altosort[2*j+m,k])+0.5)
+                    if (rra2[k] == 0): rra2[k] += np.floor(2*(Altosort[2*(j+1)+m,k])+0.5)
             
             comp = 0
-            for k in range(dim+nB-1, -1, -1):
+            for k in range(dim+nP-1, -1, -1):
                 if (rra1[k] < rra2[k]): 
                     comp = -1
                     break
@@ -810,10 +824,10 @@ def sortAold(Atosort: np.array, Altosort: np.array, nAtosort: int):
             
             if (j < ir and comp == -1):
                 j += 1
-                rra1[0:dim+nB] = rra2[0:dim+nB]
+                rra1 = rra2
             
             comp = 0
-            for k in range(dim+nB-1, -1, -1):
+            for k in range(dim+nP-1, -1, -1):
                 if (rra[k] < rra1[k]): 
                     comp = -1
                     break
@@ -822,20 +836,20 @@ def sortAold(Atosort: np.array, Altosort: np.array, nAtosort: int):
                     break
             
             if (comp == -1):
-                Atosort[2*nP*i:2*nP*(i+1)][0:dim+nB] = Atosort[2*nP*j:2*nP*(j+1)][0:dim+nB]
-                Altosort[2*nP*i:2*nP*(i+1)][0:dim+nB] = Altosort[2*nP*j:2*nP*(j+1)][0:dim+nB]
-                x[2*nP*i:2*nP*(i+1)][0:dim] = x[2*nP*j:2*nP*(j+1)][0:dim]
-                W[i] = W[j]
+                Atosort[2*i:2*(i+1),:] = Atosort[2*j:2*(j+1),:]
+                Altosort[2*i:2*(i+1),:] = Altosort[2*j:2*(j+1),:]
+                pdc.x[2*i:2*(i+1),:] = pdc.x[2*j:2*(j+1),:]
+                pdc.W[i] = pdc.W[j]
                 i = j
                 j <<= 1
-            else: j = ir+1
+            else: j = ir + 1
             
-        Atosort[2*nP*i:2*nP*(i+1)][0:dim+nB] = atmp[0:2*nP][0:dim+nB]
-        Altosort[2*nP*i:2*nP*(i+1)][0:dim+nB] = btmp[0:2*nP][0:dim+nB]
-        x[2*nP*i:2*nP*(i+1)][0:dim] = xtmp[0:2*nP][0:dim]
-        W[i] = Wtemp
+        Atosort[2*i:2*(i+1),:] = atmp
+        Altosort[2*i:2*(i+1),:] = btmp
+        pdc.x[2*i:2*(i+1),:] = xtmp
+        pdc.W[i] = Wtemp
     
-    return Atosort, Altosort, nAtosort  
+    return Atosort, Altosort
                  
 
 #=========================================================================#
@@ -850,29 +864,30 @@ def plot():
 
     f = f'config.xyz'
     packing.output_xyz(f, repeat=False)
-  
+
+
+
   
 if __name__ == '__main__':
   
     pdc = pdc()
-  
-    maxstep = 500000
     
     initialize(pd_target=0.75)
     
-    Ltrd(initial=True)
+    Ltrd()
     update_A()
     
     # plot()
-    update_weights()
+    err = update_weights()
     calc_atwa()
     
-    for i in range(maxstep):
+    for i in range(500000):
         err = dm_step()
+        
         if ((i%50) == 49): Ltrd()
         update_A()
-        update_weights()
-        calc_atwa
+        err = update_weights()
+        calc_atwa()
         
         if (err < 8.e-11):
             update_A()
