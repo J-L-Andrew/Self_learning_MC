@@ -17,7 +17,7 @@ packing = Packing()
 
 class pdc(object):
     def __init__(self):
-        self.nA = 0
+        self.nA = None
         
         self.u = np.empty([dim+nP, dim])
         self.r = np.empty([dim*nP, dim])
