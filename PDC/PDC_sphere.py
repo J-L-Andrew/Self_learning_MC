@@ -586,6 +586,8 @@ def Ltrd():
     
     unew[0:dim,:], H = LLL_reduction(pdc.u[0:dim,:], dim) # (dim, dim)
     
+    print(unew[0:dim,:])
+    
     Hd = np.zeros([dim+nP, dim+nP])
     Hd[0:dim,0:dim] = np.double(H) # G0
     # all primitive particles' centroids: -0.5<=Lambda<0.5
@@ -866,27 +868,33 @@ if __name__ == '__main__':
     
     initialize(pd_target=0.75)
     
+    pdc.u[0:dim,:] = np.array([[1., 20., 30.],
+                              [0., 1., 0.],
+                              [0., 0., 1.]])
+    
     Ltrd()
-    update_A()
     
-    # plot()
-    err = update_weights()
     
-    calc_atwa()
+    # update_A()
     
-    for i in range(500000):
-        err = dm_step()
+    # # plot()
+    # err = update_weights()
+    
+    # calc_atwa()
+    
+    # for i in range(500000):
+    #     err = dm_step()
         
-        if ((i%50) == 49): Ltrd()
-        update_A()
-        err = update_weights()
-        calc_atwa()
+    #     if ((i%50) == 49): Ltrd()
+    #     update_A()
+    #     err = update_weights()
+    #     calc_atwa()
         
-        if (err < 8.e-11):
-            update_A()
-            err = update_weights()
+    #     if (err < 8.e-11):
+    #         update_A()
+    #         err = update_weights()
             
-            if (err < 8.e-11): break
+    #         if (err < 8.e-11): break
             
     
             

@@ -11,7 +11,7 @@ import numpy as np
 
 LLL_tiny = 1e-10
 
-def LLL_swap(k: int, kmax: int, b: np.array, mu: np.array, H: np.array, B: np.array, bstar: np.array, work: np.array):
+def LLL_swap(k: int, kmax: int, b: np.array, mu: np.array, H: np.array, B: np.array, bstar: np.array):
     """
     Fig. 1. The reduction algorithm. Step(2)
     
@@ -25,8 +25,6 @@ def LLL_swap(k: int, kmax: int, b: np.array, mu: np.array, H: np.array, B: np.ar
     ----------
     b, mu, H, bstar, work
     """
-    bbar = work
-    
     # (b_(k-1) b_k) := (b_k b_(k-1))
     b[k-1], b[k] = b[k], b[k-1]
     H[k-1], H[k] = H[k], H[k-1]
@@ -157,7 +155,7 @@ def LLL_reduction(inbasis: np.array, dim: int):
             basis, mu, H = LLL_star(k, k-1, basis, mu, H)
             if (B[k] < (0.75 - mu[k,k-1]**2)*B[k-1]):
                 # go to step(2)
-                basis, mu, H, b_star, subwork = LLL_swap(k, kmax, basis, mu, H, B, b_star, subwork)
+                basis, mu, H, b_star = LLL_swap(k, kmax, basis, mu, H, B, b_star)
                 k -= 1
                 
                 if (k < 1): k = 1
