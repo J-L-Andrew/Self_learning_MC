@@ -11,20 +11,22 @@ import numpy as np
 
 LLL_tiny = 1e-10
 
-def LLL_swap(k: int, kmax: int, b: np.array, mu: np.array, H: np.array, B: np.array, bstar: np.array):
+def LLL_swap(k: int, kmax: int, b: np.array, mu: np.array, H: np.array, B: np.array, bstar: np.array, work: np.array):
     """
     Fig. 1. The reduction algorithm. Step(2)
     
     Parameters
     ----------
-    b: lattice (basis) column-major
+    b: basis
     mu: defined in Eq. (1.3)
     B: B_i = |b*_i|^2
     
     Return
     ----------
-    b, mu, H
+    b, mu, H, bstar, work
     """
+    bbar = work
+    
     # (b_(k-1) b_k) := (b_k b_(k-1))
     b[k-1], b[k] = b[k], b[k-1]
     H[k-1], H[k] = H[k], H[k-1]
@@ -70,7 +72,7 @@ def LLL_swap(k: int, kmax: int, b: np.array, mu: np.array, H: np.array, B: np.ar
             # mu_ik-1 := mu_ik + mu_kk-1*(...), where (...)=mu_ik
             mu[i,k-1]  = t + mu[k,k-1] * mu[i,k]
     
-    return b, mu, H
+    return b, mu, H, bstar
             
 
 def LLL_star(k: int, l: int, b: np.array, mu: np.array, H: np.array):
@@ -80,7 +82,7 @@ def LLL_star(k: int, l: int, b: np.array, mu: np.array, H: np.array):
     Parameters
     ----------
     K & l: subindex of mu
-    b: lattice (basis) column-major
+    b: basis
     mu: defined in Eq. (1.3)
     H: 
     
@@ -88,10 +90,9 @@ def LLL_star(k: int, l: int, b: np.array, mu: np.array, H: np.array):
     ----------
     b, mu, H
     """
-    
     if (np.fabs(mu[k,l]) > 0.5): 
         # r := integer nearest to mu_kl
-        r = np.floor(0.5 + mu[k,l])
+        r = int(np.floor(0.5 + mu[k,l]))
         # b_k := b_k - r*b_l
         b[k] -= r * b[l]
         H[k] -= r * H[l]
@@ -104,7 +105,7 @@ def LLL_star(k: int, l: int, b: np.array, mu: np.array, H: np.array):
     return b, mu, H
 
 
-def LLL_reduction(dim: int, inbasis: np.array):
+def LLL_reduction(inbasis: np.array, dim: int):
     """
     Fig. 1. The reduction algorithm. Full
     
@@ -115,7 +116,7 @@ def LLL_reduction(dim: int, inbasis: np.array):
     
     Return
     ----------
-    basis, H
+    basis, H (dim, dim)
     H indicate the lattice translate in local framework
     """
     basis = inbasis.copy() # (dim, dim)
@@ -124,6 +125,7 @@ def LLL_reduction(dim: int, inbasis: np.array):
     H = np.diag(np.ones(dim, dtype=int))
     b_star = np.zeros([dim, dim])
     B = np.zeros(dim)
+    subwork = np.empty(dim)
 
     k = 1
     kmax = 0
@@ -131,7 +133,7 @@ def LLL_reduction(dim: int, inbasis: np.array):
     """ Fig. 1. The reduction algorithm. The first part """
     # case1: i = 0
     b_star[0] = basis[0].copy()
-    B[0] = np.dot(b_star[0,:], b_star[0,:])
+    B[0] = np.dot(b_star[0], b_star[0])
     
     # case2: i > 0
     # if k=dim, terminate
@@ -155,7 +157,7 @@ def LLL_reduction(dim: int, inbasis: np.array):
             basis, mu, H = LLL_star(k, k-1, basis, mu, H)
             if (B[k] < (0.75 - mu[k,k-1]**2)*B[k-1]):
                 # go to step(2)
-                basis, mu, H = LLL_swap(k, kmax, basis, mu, H, B, b_star)
+                basis, mu, H, b_star, subwork = LLL_swap(k, kmax, basis, mu, H, B, b_star, subwork)
                 k -= 1
                 
                 if (k < 1): k = 1
@@ -165,6 +167,5 @@ def LLL_reduction(dim: int, inbasis: np.array):
                     basis, mu, H = LLL_star(k, l, basis, mu, H)
                 k += 1
                 break
-    
     
     return basis, H
