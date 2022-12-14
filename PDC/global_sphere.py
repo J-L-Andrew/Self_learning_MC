@@ -46,3 +46,4 @@ class pdc(object):
         self.LRr = np.empty([dim+nP,dim+nP])
         
         self.V0 = None
+        self.V1 = None

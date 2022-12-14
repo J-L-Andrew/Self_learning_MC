@@ -512,6 +512,8 @@ def ListClosest(rho0: np.double):
     Using the generating matrix obtained in the concur projection, find 
     all replicas to represent.
     
+    recreate Anew
+    
     Parameters
     ----------
     rho0: pper bound on ||x^ - x||
@@ -542,7 +544,7 @@ def ListClosest(rho0: np.double):
         for i in range(j, -1, -1):
             # from vnn to vn-1 n-1
             pair_level[npairs] = dim
-            pair_x[npairs,:] = -(g[dim+j] - g[dim+i]) # centroid
+            pair_x[npairs,0:dim] = -(g[dim+j] - g[dim+i]) # centroid
             pair_rho[npairs] = rho0
 
             # starting index in nB
@@ -550,11 +552,10 @@ def ListClosest(rho0: np.double):
             pair_b2[npairs] = i
             npairs += 1
     
-    """
-    Our criterion for which replicas to represent is based
-    on the difference map's current concur estimate: we include
-    a replica pair for each pair of particles whose centroids in the
-    concur estimate are closer than some cutoff distance """
+    # Our criterion for which replicas to represent is based
+    # on the difference map's current concur estimate: we include
+    # a replica pair for each pair of particles whose centroids in the
+    # concur estimate are closer than some cutoff distance
     nAnew = 0
     while (npairs > 0):
         npairs -= 1
@@ -578,9 +579,7 @@ def ListClosest(rho0: np.double):
             
             for indice in range(indice_min, indice_max+1):
                 pair_level[npairs] = level - 1
-                
-                for i in range(level-1):
-                    pair_x[npairs,i] = xx[i] - indice*g[k,i]
+                pair_x[npairs,0:level-1] = xx[0:level-1] - indice*g[k,0:level-1]
                 
                 pair_rho[npairs] = np.sqrt(rho**2 - (indice*vperp-xperp)**2)
                 pair_b1[npairs], pair_b2[npairs] = p1, p2
@@ -594,13 +593,14 @@ def ListClosest(rho0: np.double):
             for i in range(dim):
                 if (toadd[i] != 0): break
             
+            i += 1
             if (p1 != p2 or i != dim):
-                pdc.Anew[nAnew][0:dim] = -0.6*toadd
+                pdc.Anew[nAnew,0:dim] = -0.6*toadd
                 pdc.Anew[nAnew,dim:dim+nP] = np.zeros(nP)
                 pdc.Anew[nAnew,dim+p1] = 1.
                 nAnew += 1
                 
-                pdc.Anew[nAnew][0:dim] = 0.4*toadd
+                pdc.Anew[nAnew,0:dim] = 0.4*toadd
                 pdc.Anew[nAnew,dim:dim+nP] = np.zeros(nP)
                 pdc.Anew[nAnew,dim+p2] = 1.
                 nAnew += 1
@@ -613,20 +613,20 @@ def update_A():
     outscribed_d = replica[0].outscribed_d
     nAnew = int(ListClosest(outscribed_d))
     
-    pdc.Alnew = pdc.Anew.copy() # (nAnew, dim+nB)
-    pdc.xt = np.matmul(pdc.Anew, pdc.u) # (nAnew, dim)
-    pdc.x2 = pdc.xt.copy()
+    pdc.Alnew[0:nAnew,:] = pdc.Anew[0:nAnew,:].copy() # (nAnew, dim+nB)
+    pdc.xt = np.matmul(pdc.Anew[0:nAnew,:], pdc.u) # (nAnew, dim)
+    pdc.x2[0:nAnew,:] = pdc.xt[0:nAnew,:].copy()
     
     j = i = int(0)
     if (pdc.nA > 0):
         for k in range(dim+nP):
             olda[k] = 0
             for m in range(2):
-                if (olda[k] == 0): olda[k] += np.floor(2*(pdc.Al[2*j+m,k])+0.5)
+                if (olda[k] == 0): olda[k] += int(np.floor(2*(pdc.Al[2*j+m,k])+0.5))
             
             newa[k] = 0
             for m in range(2):
-                if (newa[k] == 0): newa[k] += np.floor(2*(pdc.Al[2*j+m,k])+0.5)
+                if (newa[k] == 0): newa[k] += int(np.floor(2*(pdc.Alnew[2*j+m,k])+0.5))
     
     while (True):
         if (j >= pdc.nA/2 or i >= nAnew/2): break
@@ -651,7 +651,7 @@ def update_A():
                     if (newa[k] == 0): newa[k] += np.floor(2*(pdc.Alnew[2*i+m,k])+0.5)
             
             j += 1
-            if (j >= nA/2): break
+            if (j >= pdc.nA/2): break
             
             for k in range(dim+nP):
                 olda[k] = 0
@@ -660,15 +660,15 @@ def update_A():
         
         elif (comp == -1): # newa > olda
             j += 1
-            if (j >= nA/2): break
+            if (j >= pdc.nA/2): break
             for k in range(dim+nP):
                 olda[k] = 0
                 for m in range(2):
                     if (olda[k] == 0): olda[k] += np.floor(2*(pdc.Al[2*j+m,k])+0.5)
         
         else:
-            Wnew[i] = weight_func(pdc.xt[2*i:2*(i+1)], 20)
-            if (Wnew[i] > 1.): Wnew[i] = 1.
+            pdc.Wnew[i] = weight_func(pdc.xt[2*i:2*(i+1)], 20)
+            if (pdc.Wnew[i] > 1.): pdc.Wnew[i] = 1.
             i += 1
             if (i >= nAnew/2): break
             for k in range(dim+nP):
@@ -681,7 +681,6 @@ def update_A():
             pdc.Wnew[t] = weight_func(pdc.xt[2*i:2*(i+1)], 20)
             if (pdc.Wnew[t] > 1.): pdc.Wnew[t] = 1.
       
-    
     # replace x with xt
     pdc.x, pdc.xt = pdc.xt, pdc.x
     # replace W with Wnew
@@ -698,19 +697,20 @@ def calc_atwa():
     """ Used in Lattice constraint """
     # W is a diagonal matrix whose diagonal elements wi are the metric weights of different replicas
     
+    print(pdc.Ad[0:pdc.nA,:])
     # atwa = A^T . (W*A), Anew = W*A
     for i in range(pdc.nA):
         pdc.Anew[i,:] = pdc.W[int(i/2)] * pdc.Ad[i,:] # (nA, dim+nB)
     
     # atwa = A^T . Anew
-    pdc.atwa = np.matmul(pdc.Ad.T, pdc.Anew) # (dim+nB, dim+nB)
+    pdc.atwa = np.matmul(pdc.Ad[0:pdc.nA,:].T, pdc.Anew[0:pdc.nA,:]) # (dim+nB, dim+nB)
     
     atmp = pdc.atwa.copy()
     # atwainv = atwa^-1
     pdc.atwainv = np.linalg.pinv(pdc.atwa)
     
     # let w' = atwa, the wtemp = (W'11)^-1, i.e., (atwa11)^-1
-    wtemp = np.linalg.pinv(pdc.atwa[dim:,dim:])
+    wtemp = np.linalg.pinv(pdc.atwa[dim:,dim:]) # (nP, nP)
     atmp[0:nP,:] = pdc.atwa[dim:,:].copy()
     # mw11iw10 = -(W'11)^-1 * W'10 | (nB, nB)*(nB, dim)
     # = - (atwa11)^-1 . atwa10, and i means inverse
@@ -723,18 +723,17 @@ def calc_atwa():
     eigs, featurevector = np.linalg.eig(atmp[0:dim,0:dim])
     
     # let Q = W^-1/2, then V1 (V_target) = V0*det(Q)
-    V1 = pdc.V0
-    for i in range(dim): V1*=np.sqrt(eigs[i])
+    pdc.V1 = pdc.V0
+    for i in range(dim): pdc.V1 *= np.sqrt(eigs[i])
     
     # atwa = A.L.AT, eig_work=atmp=A
     # Qinv = W^1/2, so Qinv = A.(sqrt(L).AT) = A. (A.sqrt(L))T
     # (A.sqrt(L)) = Aij sqrt(Lj)
     for i in range(dim):
-        featurevector[i,:] = np.sqrt(eigs[i])*featurevector[i,:]
+        featurevector[i,:] = np.sqrt(eigs[i])*atmp[i,0:dim]
     
     pdc.Qinv = np.matmul(atmp[0:dim,0:dim].T, featurevector)
     
-    print(featurevector)
     for i in range(dim): 
         for j in range(dim):
             featurevector[i,j] /= eigs[i]
@@ -855,6 +854,7 @@ def plot():
   
   
 if __name__ == '__main__':
+  
     pdc = pdc()
   
     maxstep = 500000
