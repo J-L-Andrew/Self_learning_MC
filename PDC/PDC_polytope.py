@@ -12,7 +12,7 @@ import sys
 sys.path.append(r'/mnt/Edisk/andrew/Self_learning_MC')
 
 from LLL import LLL_reduction
-from global_sphere import *
+from global_polytope import *
 from particle.sphere import *
 from cell import Cell
 
@@ -863,6 +863,7 @@ def plot():
 if __name__ == '__main__':
   
     pdc = pdc()
+    pdc.allocate()
     
     initialize(pd_target=0.75)
     
@@ -870,13 +871,13 @@ if __name__ == '__main__':
                               [0.005969, 3.854232, -0.006049],
                               [-0.003296, 0.005365, 3.841554]])
     
-    Ltrd()
-    update_A()
+    # Ltrd()
+    # update_A()
     
-    # # plot()
-    err = update_weights()
+    # # # plot()
+    # err = update_weights()
     
-    calc_atwa()
+    # calc_atwa()
     
     # for i in range(500000):
     #     err = dm_step()
