@@ -451,12 +451,12 @@ def RotOpt():
     uu = np.zeros([dim, dim])
     # in the order u[h[0]], u[h[1]], ...
     for i in range(dim):
-        uu[i] = pdc.u[h[i]]
+        uu[i] = pdc.u[h[i]].copy()
 
     # Gram schimidt, gs = Q (orthonormal matrix)
     gs = np.empty([dim, dim]) # (dim, dim)
     for i in range(dim):
-        gs[i] = uu[i]
+        gs[i] = uu[i].copy()
         # gs[k] -= (gs[k].gs[l<k]) gs[l]
         for j in range(i): gs[i] -= np.dot(gs[i], gs[j])*gs[j]
         
@@ -512,8 +512,7 @@ def ListClosest(rho0: np.double):
             pair_rho[npairs] = rho0
 
             # starting index in nB
-            pair_b1[npairs] = j
-            pair_b2[npairs] = i
+            pair_b1[npairs], pair_b2[npairs] = j, i
             npairs += 1
     
     # Our criterion for which replicas to represent is based
@@ -524,11 +523,11 @@ def ListClosest(rho0: np.double):
     while (npairs > 0):
         npairs -= 1
         level = pair_level[npairs]
-        xx[0:level] = pair_x[npairs,0:level]
+        xx[0:level] = pair_x[npairs,0:level].copy()
 
         rho = pair_rho[npairs]
         p1, p2 = pair_b1[npairs], pair_b2[npairs]
-        idx[0:dim-level] = pair_idx[npairs,0:dim-level]
+        idx[0:dim-level] = pair_idx[npairs,0:dim-level].copy()
         
         if (level > 0):
             # start from 0
@@ -548,7 +547,7 @@ def ListClosest(rho0: np.double):
                 pair_rho[npairs] = np.sqrt(rho**2 - (indice*vperp-xperp)**2)
                 pair_b1[npairs], pair_b2[npairs] = p1, p2
                 pair_idx[npairs,0] = indice
-                pair_idx[npairs,1:dim-level+1] = idx[0:dim-level]
+                pair_idx[npairs,1:dim-level+1] = idx[0:dim-level].copy()
                 
                 npairs += 1
         else:
@@ -604,7 +603,7 @@ def Ltrd():
     unew = np.matmul(Hd, pdc.u)
     pdc.u = unew.copy()
     
-    # Anew = A.Hinv
+    # Anew = A.Hinv (A' = )
     pdc.Anew[0:pdc.nA,:] = np.matmul(pdc.Ad[0:pdc.nA,:], Hinvd) # (nA, dim+nP)
     # A = Anew
     pdc.Anew, pdc.Ad = pdc.Ad.copy(), pdc.Anew.copy()
@@ -653,7 +652,7 @@ def update_A():
                 break
         
         if (comp == 0):
-            pdc.xt[2*i:2*(i+1),:] = pdc.x[2*j:2*(j+1),:]
+            pdc.xt[2*i:2*(i+1),:] = pdc.x[2*j:2*(j+1),:].copy()
             pdc.Wnew[i] = pdc.W[j]
             i += 1
             if (i >= int(nAnew/2)): break
@@ -694,12 +693,12 @@ def update_A():
             if (pdc.Wnew[t] > 1.): pdc.Wnew[t] = 1.
       
     # replace x with xt
-    pdc.x, pdc.xt = pdc.xt, pdc.x
+    pdc.x, pdc.xt = pdc.xt.copy(), pdc.x.copy()
     # replace W with Wnew
-    pdc.W, pdc.Wnew = pdc.Wnew, pdc.W
+    pdc.W, pdc.Wnew = pdc.Wnew.copy(), pdc.W.copy()
     # replace A with Anew, nA with nAnew
-    pdc.Ad, pdc.Anew = pdc.Anew, pdc.Ad
-    pdc.Al, pdc.Alnew = pdc.Alnew, pdc.Al
+    pdc.Ad, pdc.Anew = pdc.Anew.copy(), pdc.Ad.copy()
+    pdc.Al, pdc.Alnew = pdc.Alnew.copy(), pdc.Al.copy()
     pdc.nA = nAnew
 
     # set x2 = A . u
@@ -868,19 +867,17 @@ if __name__ == '__main__':
     
     initialize(pd_target=0.75)
     
-    pdc.u[0:dim,:] = np.array([[2., 20., 30.],
-                              [22., 1., 0.],
-                              [0., 10., 1.]])
+    pdc.u[0:dim,:] = np.array([[3.852803, -0.002112, 0.005662],
+                              [0.005969, 3.854232, -0.006049],
+                              [-0.003296, 0.005365, 3.841554]])
     
     Ltrd()
-    
-    
-    # update_A()
+    update_A()
     
     # # plot()
-    # err = update_weights()
+    err = update_weights()
     
-    # calc_atwa()
+    calc_atwa()
     
     # for i in range(500000):
     #     err = dm_step()
