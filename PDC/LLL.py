@@ -6,6 +6,7 @@
 * who kindly provides his code on demand.
 
 Note that all matrix are in row-major.
+Attention: For scalar, a, b = b, a; but for ndarray, should add copy()
 """
 import numpy as np
 
@@ -26,9 +27,9 @@ def LLL_swap(k: int, kmax: int, b: np.array, mu: np.array, H: np.array, B: np.ar
     b, mu, H, bstar, work
     """
     # (b_(k-1) b_k) := (b_k b_(k-1))
-    b[k-1], b[k] = b[k], b[k-1]
-    H[k-1], H[k] = H[k], H[k-1]
-
+    b[k-1], b[k] = b[k].copy(), b[k-1].copy()
+    H[k-1], H[k] = H[k].copy(), H[k-1].copy()
+    
     # (mu_(k-1)j mu_kj) := (mu_kj mu_(k-1)j) for j= 0, ..., 
     if (k > 1):
         for j in range(k-1):
@@ -41,8 +42,8 @@ def LLL_swap(k: int, kmax: int, b: np.array, mu: np.array, H: np.array, B: np.ar
     
     if (np.fabs(Bbar) < LLL_tiny):
         B[k], B[k-1] = B[k-1], B[k]
-        bstar[k], bstar[k-1] = bstar[k-1], bstar[k]
-        mu[k+1:kmax+1,k], mu[k+1:kmax+1,k-1] = mu[k+1:kmax+1,k-1], mu[k+1:kmax+1,k]
+        bstar[k], bstar[k-1] = bstar[k-1].copy(), bstar[k].copy()
+        mu[k+1:kmax+1,k], mu[k+1:kmax+1,k-1] = mu[k+1:kmax+1,k-1].copy(), mu[k+1:kmax+1,k].copy()
     elif (np.fabs(B[k]) < LLL_tiny and mubar != 0.):
         # B_(k-1) = B
         B[k-1] = Bbar
@@ -123,7 +124,6 @@ def LLL_reduction(inbasis: np.array, dim: int):
     H = np.diag(np.ones(dim, dtype=int))
     b_star = np.zeros([dim, dim])
     B = np.zeros(dim)
-    subwork = np.empty(dim)
 
     k = 1
     kmax = 0
@@ -157,7 +157,6 @@ def LLL_reduction(inbasis: np.array, dim: int):
                 # go to step(2)
                 basis, mu, H, b_star = LLL_swap(k, kmax, basis, mu, H, B, b_star)
                 k -= 1
-                
                 if (k < 1): k = 1
             else:
                 # perform (*) for l = k- 2, k- 3 ..... 1

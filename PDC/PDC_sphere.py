@@ -607,7 +607,7 @@ def Ltrd():
     # Anew = A.Hinv
     pdc.Anew[0:pdc.nA,:] = np.matmul(pdc.Ad[0:pdc.nA,:], Hinvd) # (nA, dim+nP)
     # A = Anew
-    pdc.Anew, pdc.Ad = pdc.Ad, pdc.Anew
+    pdc.Anew, pdc.Ad = pdc.Ad.copy(), pdc.Anew.copy()
     
     # LRr_new = H.LRr(old)
     LRrnew = np.matmul(Hd, pdc.LRr)
@@ -868,9 +868,9 @@ if __name__ == '__main__':
     
     initialize(pd_target=0.75)
     
-    pdc.u[0:dim,:] = np.array([[1., 20., 30.],
-                              [0., 1., 0.],
-                              [0., 0., 1.]])
+    pdc.u[0:dim,:] = np.array([[2., 20., 30.],
+                              [22., 1., 0.],
+                              [0., 10., 1.]])
     
     Ltrd()
     
