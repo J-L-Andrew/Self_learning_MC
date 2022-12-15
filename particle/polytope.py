@@ -1,10 +1,11 @@
 import numpy as np
 from particle.base import Particle
 
+# number of vertice & volume
 hedron = {}
-hedron["tetra"] = np.sqrt(2)/12
-hedron["hexa"] = 1
-hedron["octa"] = np.sqrt(2)/3
+hedron["tetra"] = [4, np.sqrt(2)/12]
+hedron["hexa"] = [8, 1]
+hedron["octa"] = [6, np.sqrt(2)/3]
 
 class Polytope(Particle):
     def __init__(self, length, type = "tetra"):
@@ -16,15 +17,13 @@ class Polytope(Particle):
         self.rot_mat = np.diag(np.ones(self.dim))
         
         self.type = type
-        
-        if (type == "tetrahedron"):
-            self.n_vertice = 4
+        self.n_vertice = hedron[type][0]
         
         self.vertice = None
 
     @property
     def volume(self):
-        vol = hedron[self.type]*self.length**3
+        vol = hedron[self.type][1]*self.length**3
         return vol
 
     @property

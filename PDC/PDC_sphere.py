@@ -12,7 +12,8 @@ import sys
 sys.path.append(r'/mnt/Edisk/andrew/Self_learning_MC')
 
 from LLL import LLL_reduction
-from global_sphere import *
+# from global_sphere import *
+from global_var import *
 from particle.sphere import *
 from cell import Cell
 
@@ -359,18 +360,18 @@ def concur(input: np.array):
 def initialize(pd_target: np.double):
     """ start from random initial configurations """
     pdc.nA = 0
-    pdc.V0 = nP*replica[0].volume / pd_target
+    pdc.V0 = nB*replica[0].volume / pd_target
     
-    pdc.LRr= np.diag(np.ones(dim+nP))
+    pdc.LRr= np.diag(np.ones(dim+nB))
     
     np.random.seed()
     pdc.u[0:dim,:] = 0.02*(-0.5 + np.random.random((dim, dim)))
     for i in range(dim): pdc.u[i,i] += np.cbrt(pdc.V0)
-    pdc.u[dim:,:] = -0.5 + np.random.random((nP, dim))
+    pdc.u[dim:,:] = -0.5 + np.random.random((nB, dim))
     
     # For xyz file
     packing.particle_type = 'sphere'
-    packing.num_particles = nP
+    packing.num_particles = nB
     
     # add particles
     packing.dim = 3
@@ -464,7 +465,7 @@ def RotOpt():
     
     # g[0:dim][:] = G3 = G2 * Q^T (lower-triangular matrix)
     # let x = x * Q^T
-    g = np.zeros([dim+nP, dim])
+    g = np.zeros([dim+nB, dim])
     g[0:dim,:] = np.matmul(uu, gs.T)
     g[dim:,:] = np.matmul(pdc.u[dim:,:], gs.T)
     
@@ -503,7 +504,7 @@ def ListClosest(rho0: np.double):
     
     # where x^ denote the closest lattice point to x
     npairs = 0
-    for j in range(nP-1, -1, -1):
+    for j in range(nB-1, -1, -1):
         for i in range(j, -1, -1):
             # from vnn to vn-1 n-1
             pair_level[npairs] = dim
@@ -558,12 +559,12 @@ def ListClosest(rho0: np.double):
             i += 1
             if (p1 != p2 or i != dim):
                 pdc.Anew[nAnew,0:dim] = -0.6*toadd
-                pdc.Anew[nAnew,dim:] = np.zeros(nP)
+                pdc.Anew[nAnew,dim:] = np.zeros(nB)
                 pdc.Anew[nAnew,dim+p1] = 1.
                 nAnew += 1
                 
                 pdc.Anew[nAnew,0:dim] = 0.4*toadd
-                pdc.Anew[nAnew,dim:] = np.zeros(nP)
+                pdc.Anew[nAnew,dim:] = np.zeros(nB)
                 pdc.Anew[nAnew,dim+p2] = 1.
                 nAnew += 1
 
@@ -571,31 +572,31 @@ def ListClosest(rho0: np.double):
 
 def Ltrd():
     """ Lattice reduction """
-    LRrnew = np.empty([dim+nP, dim+nP])
-    Hinvd = np.empty([dim+nP, dim+nP])
-    unew = np.empty([dim+nP, dim])
+    LRrnew = np.empty([dim+nB, dim+nB])
+    Hinvd = np.empty([dim+nB, dim+nB])
+    unew = np.empty([dim+nB, dim])
   
     # u' = H.u LLL-reduced, H = G = (G0 0, G1 1)
-    LRrnew[0:nP,0:dim] = pdc.u[dim:,:].copy() # u1
+    LRrnew[0:nB,0:dim] = pdc.u[dim:,:].copy() # u1
     Hinvd[0:dim,0:dim] = pdc.u[0:dim,:].copy() # u0
     
     # u1 = LRrnew*u0, then LRrnew = u1*u0^-1
-    LRrnew[0:nP,0:dim] = np.matmul(LRrnew[0:nP,0:dim], np.linalg.inv(Hinvd[0:dim,0:dim]))
+    LRrnew[0:nB,0:dim] = np.matmul(LRrnew[0:nB,0:dim], np.linalg.inv(Hinvd[0:dim,0:dim]))
     
     unew[0:dim,:], H = LLL_reduction(pdc.u[0:dim,:], dim) # (dim, dim)
     
     print(unew[0:dim,:])
     
-    Hd = np.zeros([dim+nP, dim+nP])
+    Hd = np.zeros([dim+nB, dim+nB])
     Hd[0:dim,0:dim] = np.double(H) # G0
     # all primitive particles' centroids: -0.5<=Lambda<0.5
-    for i in range(dim, dim+nP):
+    for i in range(dim, dim+nB):
         for j in range(dim):
             Hd[i,j] = -np.floor(0.5 + LRrnew[i-dim,j])
-    Hd[dim:,dim:] = np.diag(np.ones(nP))
+    Hd[dim:,dim:] = np.diag(np.ones(nB))
     
     # Hinv = H^-1
-    Hinvd = np.diag(np.ones(dim+nP)) 
+    Hinvd = np.diag(np.ones(dim+nB)) 
     Hinvd[0:dim,0:dim] = np.linalg.inv(Hd[0:dim,0:dim])
     
     # unew = H.u
@@ -616,8 +617,8 @@ def Ltrd():
     if (pdc.nA > 2): pdc.Ad, pdc.Al = sortAold(pdc.Ad, pdc.Al, pdc.nA)
 
 def update_A():
-    olda = np.empty(dim+nP, dtype=int)
-    newa = np.empty(dim+nP, dtype=int)
+    olda = np.empty(dim+nB, dtype=int)
+    newa = np.empty(dim+nB, dtype=int)
     
     outscribed_d = replica[0].outscribed_d
     nAnew = int(ListClosest(outscribed_d))
@@ -629,7 +630,7 @@ def update_A():
     j = i = int(0)
     if (pdc.nA > 0):
         # olda = A[j].LRr
-        for k in range(dim+nP):
+        for k in range(dim+nB):
             olda[k] = 0
             for m in range(2):
                 if (olda[k] == 0): olda[k] += int(np.floor(2*(pdc.Al[2*j+m,k])+0.5))
@@ -642,7 +643,7 @@ def update_A():
         if (j >= int(pdc.nA/2) or i >= int(nAnew/2)): break
         # compare olda and newa
         comp = 0
-        for k in range(dim+nP-1, -1, -1):
+        for k in range(dim+nB-1, -1, -1):
             if (olda[k] < newa[k]):
                 comp = -1
                 break
@@ -655,14 +656,14 @@ def update_A():
             pdc.Wnew[i] = pdc.W[j]
             i += 1
             if (i >= int(nAnew/2)): break
-            for k in range(dim+nP):
+            for k in range(dim+nB):
                 newa[k] = 0
                 for m in range(2):
                     if (newa[k] == 0): newa[k] += int(np.floor(2*(pdc.Alnew[2*i+m,k])+0.5))
             
             j += 1
             if (j >= int(pdc.nA/2)): break
-            for k in range(dim+nP):
+            for k in range(dim+nB):
                 olda[k] = 0
                 for m in range(2):
                     if (olda[k] == 0): olda[k] += int(np.floor(2*(pdc.Al[2*j+m,k])+0.5))
@@ -670,7 +671,7 @@ def update_A():
         elif (comp == -1): # newa > olda
             j += 1
             if (j >= int(pdc.nA/2)): break
-            for k in range(dim+nP):
+            for k in range(dim+nB):
                 olda[k] = 0
                 for m in range(2):
                     if (olda[k] == 0): olda[k] += int(np.floor(2*(pdc.Al[2*j+m,k])+0.5))
@@ -680,7 +681,7 @@ def update_A():
             if (pdc.Wnew[i] > 1.): pdc.Wnew[i] = 1.
             i += 1
             if (i >= int(nAnew/2)): break
-            for k in range(dim+nP):
+            for k in range(dim+nB):
                 newa[k] = 0
                 for m in range(2):
                     if (newa[k] == 0): newa[k] += int(np.floor(2*(pdc.Alnew[2*i+m,k])+0.5))
@@ -722,7 +723,7 @@ def calc_atwa():
     wtemp = np.linalg.pinv(pdc.atwa[dim:,dim:]) # (nP, nP)
     # mw11iw10 = -(W'11)^-1 * W'10 | (nB, nB)*(nB, dim)
     # = - (atwa11)^-1 . atwa10, and m means minus, i means inverse
-    pdc.mw11iw10 = -np.matmul(wtemp, atmp[0:nP,0:dim]) # (nP, dim)
+    pdc.mw11iw10 = -np.matmul(wtemp, atmp[0:nB,0:dim]) # (nP, dim)
     
     # atwa2 = W'' = W'00 - W'01*(W'11)^-1 * W'10 = W'00 - W'01*temp
     atmp[0:dim,:] = pdc.atwa[0:dim,:].copy() # W'0
@@ -750,9 +751,9 @@ def calc_atwa():
     pdc.Q = np.matmul(atmp[0:dim,0:dim].T, featurevector)
 
 def sortAold(Atosort: np.array, Altosort: np.array, nAtosort: int):
-    rra = np.empty(dim+nP)
-    rra1 = np.empty(dim+nP)
-    rra2 = np.empty(dim+nP)
+    rra = np.empty(dim+nB)
+    rra1 = np.empty(dim+nB)
+    rra2 = np.empty(dim+nB)
     
     n = int(nAtosort/2)
     
@@ -762,7 +763,7 @@ def sortAold(Atosort: np.array, Altosort: np.array, nAtosort: int):
     while True:
         if (l > 0):
             l -= 1
-            for k in range(dim+nP):
+            for k in range(dim+nB):
                 rra[k] = 0
                 for m in range(2):
                     if (rra[k] == 0): rra[k] += np.floor(2*(Altosort[2*l+m,k])+0.5)
@@ -772,7 +773,7 @@ def sortAold(Atosort: np.array, Altosort: np.array, nAtosort: int):
             xtmp = pdc.x[2*l:2*(l+1),:]
             Wtemp = pdc.W[l]
         else:
-            for k in range(dim+nP):
+            for k in range(dim+nB):
                 rra[k] = 0
                 for m in range(2):
                     if (rra[k] == 0): rra[k] += np.floor(2*(Altosort[2*ir+m,k])+0.5)
@@ -799,14 +800,14 @@ def sortAold(Atosort: np.array, Altosort: np.array, nAtosort: int):
         i = l
         j = l+1
         while (j <= ir):
-            for k in range(dim+nP):
+            for k in range(dim+nB):
                 rra1[k] = rra2[k] = 0
                 for m in range(2):
                     if (rra1[k] == 0): rra1[k] += np.floor(2*(Altosort[2*j+m,k])+0.5)
                     if (rra2[k] == 0): rra2[k] += np.floor(2*(Altosort[2*(j+1)+m,k])+0.5)
             
             comp = 0
-            for k in range(dim+nP-1, -1, -1):
+            for k in range(dim+nB-1, -1, -1):
                 if (rra1[k] < rra2[k]): 
                     comp = -1
                     break
@@ -819,7 +820,7 @@ def sortAold(Atosort: np.array, Altosort: np.array, nAtosort: int):
                 rra1 = rra2
             
             comp = 0
-            for k in range(dim+nP-1, -1, -1):
+            for k in range(dim+nB-1, -1, -1):
                 if (rra[k] < rra1[k]): 
                     comp = -1
                     break
@@ -863,6 +864,7 @@ def plot():
 if __name__ == '__main__':
   
     pdc = pdc()
+    pdc.allocate()
     
     initialize(pd_target=0.75)
     
