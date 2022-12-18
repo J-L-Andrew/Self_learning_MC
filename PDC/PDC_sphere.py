@@ -41,7 +41,6 @@ def proj_nonoverlap(pair: np.array):
     
     # check centroid-centroid distance
     dist = norm(pair[0] - pair[1])
-    outscribed_d = (replica[0].outscribed_d + replica[1].outscribed_d)/2.
     if (dist < outscribed_d):
         pair_new[0] += (2.-dist)/2./dist*(pair[0] - pair[1])
         pair_new[1] -= (2.-dist)/2./dist*(pair[0] - pair[1])
@@ -553,11 +552,12 @@ def ListClosest(rho0: np.double):
         else:
             for i in range(dim): toadd[perm[i]] = -idx[i]
             
+            count = 0
             for i in range(dim):
                 if (toadd[i] != 0): break
+                count += 1
             
-            i += 1
-            if (p1 != p2 or i != dim):
+            if (p1 != p2 or count != dim):
                 pdc.Anew[nAnew,0:dim] = -0.6*toadd
                 pdc.Anew[nAnew,dim:] = np.zeros(nB)
                 pdc.Anew[nAnew,dim+p1] = 1.
@@ -623,7 +623,6 @@ def update_A():
     olda = np.empty(dim+nB, dtype=int)
     newa = np.empty(dim+nB, dtype=int)
     
-    outscribed_d = replica[0].outscribed_d
     nAnew = int(ListClosest(outscribed_d))
     
     pdc.Alnew[0:nAnew,:] = pdc.Anew[0:nAnew,:].copy() # (nAnew, dim+nP)

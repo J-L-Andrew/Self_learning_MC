@@ -45,7 +45,6 @@ def proj_nonoverlap(pair: np.array):
     s2 = np.sum(pair[nV:2*nV,:], axis=1) / nV
     dist = norm(s1 - s2)
     
-    outscribed_d = replica[0].outscribed_d
     if (dist < outscribed_d):
         for i in range(dim-1): js[i] = i
         js[dim-1] = nV
@@ -543,7 +542,82 @@ def dm_step():
     
     return err/pdc.nA
 
-def weight_func(pair: np.array, alpha: np.double):
+# def weight_func(pair: np.array):
+#     """
+#     A function that assigns replica weights based on their 
+#     configuration in the concur estimate.
+    
+#     return: w(Xc) and overlap measure (dist here)
+#     """
+#     js = np.empty(10, dtype=int)
+#     gs = np.empty([dim, dim])
+#     quad = np.empty([dim, dim])
+    
+#     s1 = np.sum(pair[0:nV,:], axis=0) / nV
+#     s2 = np.sum(pair[nV:2*nV,:], axis=0) / nV
+#     dist = norm(s1 - s2)
+    
+#     if (dist < outscribed_d):
+#         js[0:dim-1] = np.arange(0, dim-1)
+#         js[dim-1] = nV
+        
+#         r2 = np.Infinity
+        
+#         while (True):
+#             s1 = s2 = 0. # delta^2+(S) & delta^2-(S)
+        
+#             for i in range(dim-1):
+#                 gs[i] = pair[js[i+1]] - pair[js[0]]
+        
+#             quad[dim-1,0] = gs[0,1]*gs[1,2] - gs[0,2]*gs[1,1]
+#             quad[dim-1,1] = gs[0,2]*gs[1,0] - gs[0,0]*gs[1,2]
+#             quad[dim-1,2] = gs[0,0]*gs[1,1] - gs[0,1]*gs[1,0]
+        
+#             quad[dim-1] /= norm(quad[dim-1])
+        
+#             for i in range(nV):
+#                 s = 0.
+#                 for j in range(dim):
+#                     s += (pair[i,j] - pair[js[0],j])*quad[dim-1,j]
+#                 if (s < 0.): s1 += s**2
+#                 else: s2 += s**2
+            
+#             for i in range(nV, 2*nV):
+#                 s = 0.
+#                 for j in range(dim):
+#                     s += (pair[i,j] - pair[js[0],j])*quad[dim-1,j]
+#                 if (s > 0.): s1 += s**2
+#                 else: s2 += s**2
+            
+#             s2 = min(s1, s2)
+#             if (s2 < r2): r2 = s2
+            
+#             js[dim-1] += 1
+#             if (js[dim-1] == 2*nV):
+#                 k = 1
+#                 while (True):
+#                     js[dim-1-k] += 1
+#                     if (js[dim-1-k] == 2*nV-k): k += 1
+#                     else: break
+                
+#                 if (js[0] >= nV): break
+#                 for i in range(k-1, -1, -1):
+#                     js[dim-1-i] = js[dim-2-i] + 1
+#                 if (js[dim-1] < nV): js[dim-1] = nV
+      
+#     else: r2 = 0.
+#     ret = r2
+    
+#     if (r2 < PLANE_TOL): r2 = -(dist**2 - inscribed_d**2) # (ri^2 - 4rin^2)
+#     else: r2 *= 10.
+    
+#     if (r2 > 5.): r2 = 5.
+#     if (r2 > 0.): y = np.exp(r2)
+#     else: y = (1 - r2)**(-2)
+    
+#     return y, ret
+
+def weight_func(pair: np.array):
     """
     A function that assigns replica weights based on their 
     configuration in the concur estimate.
@@ -554,17 +628,15 @@ def weight_func(pair: np.array, alpha: np.double):
     gs = np.empty([dim, dim])
     quad = np.empty([dim, dim])
     
-    s1 = np.sum(pair[0:nV,:], axis=1) / nV
-    s2 = np.sum(pair[nV:2*nV,:], axis=1) / nV
+    s1 = np.sum(pair[0:nV,:], axis=0) / nV
+    s2 = np.sum(pair[nV:2*nV,:], axis=0) / nV
     dist = norm(s1 - s2)
     
-    outscribed_d = replica[0].outscribed_d
-    if (dist < outscribed_d):
-        for i in range(dim-1): js[i] = i
+    if (dist**2 < 4.):
+        js[0:dim-1] = np.arange(0, dim-1)
         js[dim-1] = nV
         
         r2 = np.Infinity
-        
         while (True):
             s1 = s2 = 0. # delta^2+(S) & delta^2-(S)
         
@@ -574,7 +646,6 @@ def weight_func(pair: np.array, alpha: np.double):
             quad[dim-1,0] = gs[0,1]*gs[1,2] - gs[0,2]*gs[1,1]
             quad[dim-1,1] = gs[0,2]*gs[1,0] - gs[0,0]*gs[1,2]
             quad[dim-1,2] = gs[0,0]*gs[1,1] - gs[0,1]*gs[1,0]
-        
             quad[dim-1] /= norm(quad[dim-1])
         
             for i in range(nV):
@@ -610,7 +681,7 @@ def weight_func(pair: np.array, alpha: np.double):
     else: r2 = 0.
     ret = r2
     
-    if (r2 < PLANE_TOL): r2 = -(dist**2 - inscribed_d**2) # (ri^2 - 4rin^2)
+    if (r2 < PLANE_TOL): r2 = -(dist**2 - 4./3.) # (ri^2 - 4rin^2)
     else: r2 *= 10.
     
     if (r2 > 5.): r2 = 5.
@@ -623,7 +694,7 @@ def update_weights():
     """ perform the weight adjustments according to Eq. (47) """
     ret = 0
     for i in range(0, pdc.nA, 2*nV):
-        w, s = weight_func(pdc.x2[i:i+2*nV], 20)
+        w, s = weight_func(pdc.x2[i:i+2*nV])
         pdc.W[int(i/(2*nV))] = (tau*pdc.W[int(i/(2*nV))] + w) / (tau+1.)
         ret += s
         
@@ -647,8 +718,6 @@ def Ltrd():
     LRrnew[0:nB,0:dim] = np.matmul(LRrnew[0:nB,0:dim], np.linalg.inv(Hinvd[0:dim,0:dim]))
     
     unew[0:dim,:], H = LLL_reduction(pdc.u[0:dim,:], dim) # (dim, dim)
-    
-    print(unew[0:dim,:])
     
     Hd = np.zeros([dim+nB, dim+nB])
     Hd[0:dim,0:dim] = np.double(H) # G0
@@ -689,8 +758,7 @@ def RotOpt():
     ----------
     g, h(int)
     """
-    h = np.zeros(dim, dtype=int)
-    for i in range(dim): h[i] = i
+    h = np.arange(0, dim, dtype=int)
 
     uu = np.zeros([dim, dim])
     # in the order u[h[0]], u[h[1]], ...
@@ -704,14 +772,16 @@ def RotOpt():
         # gs[k] -= (gs[k].gs[l<k]) gs[l]
         for j in range(i): gs[i] -= np.dot(gs[i], gs[j])*gs[j]
         
-        # normalized
-        gs[i] /= np.linalg.norm(gs[i])
+        gs[i] /= norm(gs[i]) # normalized
     
     # g[0:dim][:] = G3 = G2 * Q^T (lower-triangular matrix)
     # let x = x * Q^T
-    g = np.zeros([dim+nB, dim])
+    g = np.empty([dim+nB, dim])
+    print(pdc.u[dim:,:])
     g[0:dim,:] = np.matmul(uu, gs.T)
     g[dim:,:] = np.matmul(pdc.u[dim:,:], gs.T)
+    
+    print(gs)
     
     return g, h
 
@@ -725,15 +795,11 @@ def ListClosest(rho0: np.double):
     Parameters
     ----------
     rho0: pper bound on ||x^ - x||
-    
-    Return
-    ----------
-    g, h
     """
     # initilization
     max_breadth = 100
-    xx = np.zeros(dim)
-    idx = np.zeros(dim, dtype=int)
+    xx = np.empty(dim)
+    idx = np.empty(dim, dtype=int)
     toadd = np.empty(dim, dtype=int)
     
     pair_idx = np.empty([max_breadth*(dim+1), dim], dtype=int)
@@ -745,6 +811,7 @@ def ListClosest(rho0: np.double):
     
     # perm: coordinate permutations
     g, perm = RotOpt()
+    print(perm)
     
     # where x^ denote the closest lattice point to x
     npairs = 0
@@ -755,7 +822,7 @@ def ListClosest(rho0: np.double):
             
             pair_x[npairs,:] = np.zeros(dim)
             for n in range(nV):
-                pair_x[npairs,:] += -(g[dim+j+n] - g[dim+i+n])/nV # centroid
+                pair_x[npairs] += -(g[dim+j+n] - g[dim+i+n])/nV # centroid
             pair_rho[npairs] = rho0
 
             # starting index in nB
@@ -767,6 +834,7 @@ def ListClosest(rho0: np.double):
     # a replica pair for each pair of particles whose centroids in the
     # concur estimate are closer than some cutoff distance
     nAnew = 0
+    cout = 0
     while (npairs > 0):
         npairs -= 1
         level = pair_level[npairs]
@@ -798,13 +866,17 @@ def ListClosest(rho0: np.double):
                 
                 npairs += 1
         else:
+            # cout += 1
             for i in range(dim): toadd[perm[i]] = -idx[i]
             
+            count = 0
             for i in range(dim):
                 if (toadd[i] != 0): break
+                count += 1
             
-            i += 1
-            if (p1 != p2 or i != dim):
+            if (p1 != p2 or count != dim):
+                print(p1, p2, count)
+                cout += 1
                 for n in range(nV):
                     pdc.Anew[nAnew,0:dim] = -0.6*toadd
                     pdc.Anew[nAnew,dim:] = np.zeros(nB)
@@ -820,14 +892,15 @@ def ListClosest(rho0: np.double):
             if (nAnew > max_nA - 2*nV):
                 print("memory overflow")
 
+    print(cout)
     return nAnew
 
 def update_A():
     olda = np.empty(dim+nB, dtype=int)
     newa = np.empty(dim+nB, dtype=int)
     
-    nAnew = int(ListClosest(outscribed_d))
-    print(nAnew)
+    nAnew = int(ListClosest(4.))
+    print(pdc.Anew[0:nAnew,:])
     
     pdc.Alnew[0:nAnew,:] = pdc.Anew[0:nAnew,:].copy() # (nAnew, dim+nP)
     pdc.xt = np.matmul(pdc.Anew[0:nAnew,:], pdc.u) # (nAnew, dim)
@@ -858,7 +931,7 @@ def update_A():
                 break
         
         if (comp == 0):
-            pdc.xt[2*nV*i:2*(i+1),:] = pdc.x[2*nV*j:2*nV*(j+1),:].copy()
+            pdc.xt[2*nV*i:2*nV*(i+1),:] = pdc.x[2*nV*j:2*nV*(j+1),:].copy()
             pdc.Wnew[i] = pdc.W[j]
             i += 1
             if (i >= int(nAnew/(2*nV))): break
@@ -883,7 +956,7 @@ def update_A():
                     if (olda[k] == 0): olda[k] += int(np.floor(2*(pdc.Al[2*nV*j+m,k])+0.5))
         
         else: # newa < olda
-            pdc.Wnew[i], s = weight_func(pdc.xt[2*nV*i:2*nV*(i+1)], 20)
+            pdc.Wnew[i], s = weight_func(pdc.xt[2*nV*i:2*nV*(i+1)])
             if (pdc.Wnew[i] > 1.): pdc.Wnew[i] = 1.
             i += 1
             if (i >= int(nAnew/(2*nV))): break
@@ -895,7 +968,7 @@ def update_A():
     # broken without populating Anew entirely               
     if (i < int(nAnew/(2*nV))):
         for t in range(i, int(nAnew/(2*nV))):
-            pdc.Wnew[t], s = weight_func(pdc.xt[2*nV*i:2*nV*(i+1)], 20)
+            pdc.Wnew[t], s = weight_func(pdc.xt[2*nV*i:2*nV*(i+1)])
             if (pdc.Wnew[t] > 1.): pdc.Wnew[t] = 1.
       
     # replace x with xt
@@ -906,6 +979,9 @@ def update_A():
     pdc.Ad, pdc.Anew = pdc.Anew.copy(), pdc.Ad.copy()
     pdc.Al, pdc.Alnew = pdc.Alnew.copy(), pdc.Al.copy()
     pdc.nA = nAnew
+    
+    print(pdc.nA)
+    # print(pdc.Ad[0:pdc.nA, 0:dim])
 
     # set x2 = A . u
     pdc.x2[pdc.nA,:] = np.matmul(pdc.Ad[pdc.nA,:], pdc.u) # (nA, dim)            
@@ -914,9 +990,9 @@ def calc_atwa():
     """ Used in Lattice constraint """
     # W is a diagonal matrix whose diagonal elements wi are the metric weights of different replicas
     # atwa = A^T . (W*A), Anew = W*A
-    print(pdc.Ad[0:pdc.nA,:])
+    # print(pdc.Ad[0:pdc.nA,:])
     for i in range(pdc.nA):
-        pdc.Anew[i,:] = pdc.W[int(i/2)] * pdc.Ad[i,:] # (nA, dim+nP)
+        pdc.Anew[i,:] = pdc.W[int(i/(2*nV))] * pdc.Ad[i,:] # (nA, dim+nP)
     
     # atwa = A^T . Anew
     pdc.atwa = np.matmul(pdc.Ad[0:pdc.nA,:].T, pdc.Anew[0:pdc.nA,:]) # (dim+nP, dim+nP)
@@ -1074,13 +1150,17 @@ if __name__ == '__main__':
     
     initialize(pd_target=0.75)
     
+    # [2., 20., 30.],
+    #                           [22., 1., 0.],
+    #                           [0., 10., 1.],
+    
     # [3.852803, -0.002112, 0.005662],
     #                           [0.005969, 3.854232, -0.006049],
     #                           [-0.003296, 0.005365, 3.841554],
     
-    pdc.u[0:dim+nB,:] = np.array([[2., 20., 30.],
-                              [22., 1., 0.],
-                              [0., 10., 1.],
+    pdc.u[0:dim+nB,:] = np.array([[3.852803, -0.002112, 0.005662],
+                              [0.005969, 3.854232, -0.006049],
+                              [-0.003296, 0.005365, 3.841554],
                               [0.001079, -0.000452, 0.002577],
                               [-0.002704, 0.000268, 0.009045],
                               [0.008324, 0.002714, 0.004346],
@@ -1110,9 +1190,9 @@ if __name__ == '__main__':
     update_A()
     
     # # # plot()
-    # err = update_weights()
+    err = update_weights()
     
-    # calc_atwa()
+    calc_atwa()
     
     # for i in range(500000):
     #     err = dm_step()
