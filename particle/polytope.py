@@ -1,11 +1,12 @@
 import numpy as np
 from particle.base import Particle
 
-# number of vertice & volume
+# number of vertice & volume 
+# radius of outscribed sphere & radius of inscribed sphere
 hedron = {}
-hedron["tetra"] = [4, np.sqrt(2)/12]
-hedron["hexa"] = [8, 1]
-hedron["octa"] = [6, np.sqrt(2)/3]
+hedron["tetra"] = [4, np.sqrt(2)/12, np.sqrt(6)/4, np.sqrt(6)/12]
+hedron["hexa"] = [8, 1, np.sqrt(2)/2, np.sqrt(6)/6]
+hedron["octa"] = [6, np.sqrt(2)/3, 0.5]
 
 class Polytope(Particle):
     def __init__(self, length, type = "tetra"):
@@ -31,7 +32,7 @@ class Polytope(Particle):
         """
         diameter of the outscribed sphere
         """
-        return np.min(self.semi_axis)
+        return 2.*hedron[self.type][3]*self.length
     
     @property
     def outscribed_d(self):
@@ -39,11 +40,7 @@ class Polytope(Particle):
         diameter of the outscribed sphere
         """
         # Hölder Inequality
-        if (self.p > 1.):
-            k = self.p/(self.p-1.)
-            temp = self.a**(2.*k) + self.b**(2.*k) + self.c**(2.*k)
-            return temp**(1./k)
-        else: return np.max(self.semi_axis)
+        return 2.*hedron[self.type][2]*self.length
     
     def shapeFun(self, r_l: np.array):
         """ Superellipsoid function """

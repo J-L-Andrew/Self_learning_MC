@@ -5,7 +5,6 @@
 * The present code is based on the original C version written by Yoav Kallus
 * who kindly provides his code on demand.
 """
-
 import numpy as np
 from numpy.linalg import norm
 import sys
@@ -38,12 +37,150 @@ def proj_nonoverlap(pair: np.array):
     # rotation matrix & translation vector (centroid)
     pair_new = pair.copy()
     
-    # check centroid-centroid distance
-    dist = norm(pair[0] - pair[1])
-    outscribed_d = (replica[0].outscribed_d + replica[1].outscribed_d)/2.
+    js = np.empty(2*nV, dtype=int)
+    gs = np.empty([dim, dim])
+    quad = np.empty([dim, dim])
+    
+    s1 = np.sum(pair[0:nV,:], axis=1) / nV
+    s2 = np.sum(pair[nV:2*nV,:], axis=1) / nV
+    dist = norm(s1 - s2)
+    
+    outscribed_d = replica[0].outscribed_d
     if (dist < outscribed_d):
-        pair_new[0] += (2.-dist)/2./dist*(pair[0] - pair[1])
-        pair_new[1] -= (2.-dist)/2./dist*(pair[0] - pair[1])
+        for i in range(dim-1): js[i] = i
+        js[dim-1] = nV
+        
+        r2 = np.Infinity
+        
+        while (True):
+            s1 = s2 = 0. # delta^2+(S) & delta^2-(S)
+        
+            for i in range(dim-1):
+                gs[i] = pair[js[i+1]] - pair[js[0]]
+        
+            quad[dim-1,0] = gs[0,1]*gs[1,2] - gs[0,2]*gs[1,1]
+            quad[dim-1,1] = gs[0,2]*gs[1,0] - gs[0,0]*gs[1,2]
+            quad[dim-1,2] = gs[0,0]*gs[1,1] - gs[0,1]*gs[1,0]
+        
+            quad[dim-1] /= norm(quad[dim-1])
+        
+            for i in range(nV):
+                s = 0.
+                for j in range(dim):
+                    s += (pair[i,j] - pair[js[0],j])*quad[dim-1,j]
+                if (s < 0.): s1 += s**2
+                else: s2 += s**2
+            
+            for i in range(nV, 2*nV):
+                s = 0.
+                for j in range(dim):
+                    s += (pair[i,j] - pair[js[0],j])*quad[dim-1,j]
+                if (s > 0.): s1 += s**2
+                else: s2 += s**2
+            
+            s2 = min(s1, s2)
+            
+            if (s2 < r2): r2 = s2
+            
+            js[dim-1] += 1
+            if (js[dim-1] == 2*nV):
+                k = 1
+                while (True):
+                    js[dim-1-k] += 1
+                    if (js[dim-1-k] == 2*nV-k): k += 1
+                    else: break
+                
+                if (js[0] >= nV): break
+                for i in range(k-1, -1, -1):
+                    js[dim-1-k] = js[dim-2-k] + 1
+                if (js[dim-1] < nV): js[dim-1] = nV
+      
+    # no co-1 plane saparates the two hulls
+    nj = dim + 1
+    for i in range(2*dim): js[k] = k
+    js[nj-1] = nV
+    
+    mind = bestatlevel = np.Infinity
+    while (True):
+        xavg = np.zeros(dim)
+        for i in range(nj):
+            for j in range(nj):
+                xavg[j] += pair[js[i],k]/nj
+        quad = np.zeros([dim, dim])
+        
+        for i in range(dim):
+            for j in range(dim):
+                for k in range(nj):
+                    quad[i,j] += (pair[js[k],i] - xavg[i])*(pair[js[k],j] - xavg[j])
+        
+        eigs, featurevector = np.linalg.eig(quad)
+        np.sort(eigs)
+        # check if projecting to the coplane satisfies the constraint
+        # first row of quad has lowest eigenvector
+        if (bestatlevel > eigs[0]):
+            bestatlevel = eigs[0]
+            bestchekedout = 0
+        
+        sign = 0.
+        for i in range(nV):
+            for j in range(nj):
+                if (i == js[j]): break
+                if (j == nj):
+                    s = 0.
+                    for k in range(dim):
+                        s += (pair[i,k] - xavg[k])*quad[0,k]
+                    if (sign == 0.):
+                        if (s < -PLANE_TOL): sign = -1.
+                        if (s > PLANE_TOL): sign = 1.
+                    
+                    if (s*sign < -PLANE_TOL): break
+        
+        i += 1
+        if (i == nV):
+            for i in range(nV, 2*nV):
+                for j in range(nj):
+                    if (i == js[j]): break
+                    if (j == nj):
+                        s = 0.
+                        for k in range(dim):
+                            s += (pair[i,k] - xavg[k])*quad[0,k]
+                            if (s*sign > PLANE_TOL): break
+            
+            i += 1
+            if (i == 2*nV):
+                bestchekedout = 1
+                if (mind > eigs[0]):
+                    mind = eigs[0]
+                    minjs[0:nj] = js[0:nj].copy()
+                    mineig[0:dim] = quad[0,:].copy()
+                    minnj = nj
+                    
+        js[nj-1] += 1
+        if (js[nj-1] == 2*nV):
+            k = 1
+            while (True):
+                js[nj-1-k] += 1
+                if (js[nj-1-k] == 2*nB-k): k += 1
+                else: break
+            for i in range(k-1, -1, -1):
+                js[nj-1-i] = js[nj-2-i] + 1
+            if (js[nj-1] < nV): js[nj-1] = nV
+            if (js[0] >= nV):
+                if (bestchekedout == 1): break
+                nj += 1
+                if (nj > 2*nV-1): break
+                for i in range(nj-1): js[i] = i
+                js[nj-1] = nV
+    
+    if (mind != np.Infinity):
+        s = 0.
+        for i in range(minnj):
+            s += np.dot(pair[minjs[i]], mineig)
+        s /= minnj
+        
+        for i in range(minnj):
+            t = np.dot(pair[minjs[i]], mineig) - s
+            pair_new[minjs[i]] -= t*mineig
     
     return pair_new
 
@@ -413,29 +550,137 @@ def weight_func(pair: np.array, alpha: np.double):
     
     return: w(Xc) and overlap measure (dist here)
     """
-    dist = np.linalg.norm(pair[0] - pair[1])
-  
-    if (dist < 2):
-        y = np.exp(alpha*(4-dist**2))
-    else:
-        y = (dist**2 - 3)**(-2-dim/2)
+    js = np.empty(10, dtype=int)
+    gs = np.empty([dim, dim])
+    quad = np.empty([dim, dim])
     
-    return y, dist
+    s1 = np.sum(pair[0:nV,:], axis=1) / nV
+    s2 = np.sum(pair[nV:2*nV,:], axis=1) / nV
+    dist = norm(s1 - s2)
+    
+    outscribed_d = replica[0].outscribed_d
+    if (dist < outscribed_d):
+        for i in range(dim-1): js[i] = i
+        js[dim-1] = nV
+        
+        r2 = np.Infinity
+        
+        while (True):
+            s1 = s2 = 0. # delta^2+(S) & delta^2-(S)
+        
+            for i in range(dim-1):
+                gs[i] = pair[js[i+1]] - pair[js[0]]
+        
+            quad[dim-1,0] = gs[0,1]*gs[1,2] - gs[0,2]*gs[1,1]
+            quad[dim-1,1] = gs[0,2]*gs[1,0] - gs[0,0]*gs[1,2]
+            quad[dim-1,2] = gs[0,0]*gs[1,1] - gs[0,1]*gs[1,0]
+        
+            quad[dim-1] /= norm(quad[dim-1])
+        
+            for i in range(nV):
+                s = 0.
+                for j in range(dim):
+                    s += (pair[i,j] - pair[js[0],j])*quad[dim-1,j]
+                if (s < 0.): s1 += s**2
+                else: s2 += s**2
+            
+            for i in range(nV, 2*nV):
+                s = 0.
+                for j in range(dim):
+                    s += (pair[i,j] - pair[js[0],j])*quad[dim-1,j]
+                if (s > 0.): s1 += s**2
+                else: s2 += s**2
+            
+            s2 = min(s1, s2)
+            if (s2 < r2): r2 = s2
+            
+            js[dim-1] += 1
+            if (js[dim-1] == 2*nV):
+                k = 1
+                while (True):
+                    js[dim-1-k] += 1
+                    if (js[dim-1-k] == 2*nV-k): k += 1
+                    else: break
+                
+                if (js[0] >= nV): break
+                for i in range(k-1, -1, -1):
+                    js[dim-1-i] = js[dim-2-i] + 1
+                if (js[dim-1] < nV): js[dim-1] = nV
+      
+    else: r2 = 0.
+    ret = r2
+    
+    if (r2 < PLANE_TOL): r2 = -(dist**2 - inscribed_d**2) # (ri^2 - 4rin^2)
+    else: r2 *= 10.
+    
+    if (r2 > 5.): r2 = 5.
+    if (r2 > 0.): y = np.exp(r2)
+    else: y = (1 - r2)**(-2)
+    
+    return y, ret
 
 def update_weights():
     """ perform the weight adjustments according to Eq. (47) """
     ret = 0
-    for i in range(0, pdc.nA, 2):
-        w, s = weight_func(pdc.x2[i:i+2], 20)
-        pdc.W[int(i/2)] = (tau*pdc.W[int(i/2)] + w) / (tau+1.)
+    for i in range(0, pdc.nA, 2*nV):
+        w, s = weight_func(pdc.x2[i:i+2*nV], 20)
+        pdc.W[int(i/(2*nV))] = (tau*pdc.W[int(i/(2*nV))] + w) / (tau+1.)
         ret += s
         
     return ret
 
 
 #=========================================================================#
-#  Maintenance                                                            #
+#  Formal configuration-space maintenance                                 #
 #=========================================================================# 
+def Ltrd():
+    """ Lattice reduction """
+    LRrnew = np.empty([dim+nB, dim+nB])
+    Hinvd = np.empty([dim+nB, dim+nB])
+    unew = np.empty([dim+nB, dim])
+  
+    # u' = H.u LLL-reduced, H = G = (G0 0, G1 1)
+    LRrnew[0:nB,0:dim] = pdc.u[dim:,:].copy() # u1
+    Hinvd[0:dim,0:dim] = pdc.u[0:dim,:].copy() # u0
+    
+    # u1 = LRrnew*u0, then LRrnew = u1*u0^-1
+    LRrnew[0:nB,0:dim] = np.matmul(LRrnew[0:nB,0:dim], np.linalg.inv(Hinvd[0:dim,0:dim]))
+    
+    unew[0:dim,:], H = LLL_reduction(pdc.u[0:dim,:], dim) # (dim, dim)
+    
+    print(unew[0:dim,:])
+    
+    Hd = np.zeros([dim+nB, dim+nB])
+    Hd[0:dim,0:dim] = np.double(H) # G0
+    # all primitive particles' centroids: -0.5<=Lambda<0.5
+    for i in range(dim, dim+nB, nV):
+        for j in range(dim):
+            s = np.sum(LRrnew[i-dim:i-dim+nV,j]) / nV
+            Hd[i:i+nV,j] = -np.floor(0.5 + s)
+    Hd[dim:,dim:] = np.diag(np.ones(nB))
+    
+    # Hinv = H^-1
+    Hinvd = np.diag(np.ones(dim+nB)) 
+    Hinvd[0:dim,0:dim] = np.linalg.inv(Hd[0:dim,0:dim])
+    
+    # unew = H.u
+    unew = np.matmul(Hd, pdc.u)
+    # print(unew)
+    pdc.u = unew.copy()
+    
+    # Anew = A.Hinv (A' = )
+    pdc.Anew[0:pdc.nA,:] = np.matmul(pdc.Ad[0:pdc.nA,:], Hinvd) # (nA, dim+nP)
+    # A = Anew
+    pdc.Anew, pdc.Ad = pdc.Ad.copy(), pdc.Anew.copy()
+    
+    # LRr_new = H.LRr(old)
+    LRrnew = np.matmul(Hd, pdc.LRr)
+    pdc.LRr = LRrnew.copy()
+    
+    pdc.Al[0:pdc.nA,:] = pdc.Ad[0:pdc.nA,:].copy()
+    
+    if (pdc.nA >= 2*nV): pdc.Ad, pdc.Al = sortAold(pdc.Ad, pdc.Al, pdc.nA)
+
 def RotOpt():
     """ 
     Algorithm CLOSEPOINT adpated from "Closest Point Search in Lattices". step2: QR decomposition
@@ -495,23 +740,26 @@ def ListClosest(rho0: np.double):
     pair_x = np.empty([max_breadth*(dim+1), dim])
     pair_level = np.empty(max_breadth*(dim+1), dtype=int)
     pair_rho = np.empty(max_breadth*(dim+1))
-    pair_b1 = np.empty(max_breadth*(dim+1), dtype=int)
-    pair_b2 = np.empty(max_breadth*(dim+1), dtype=int)
+    pair_p1 = np.empty(max_breadth*(dim+1), dtype=int)
+    pair_p2 = np.empty(max_breadth*(dim+1), dtype=int)
     
     # perm: coordinate permutations
     g, perm = RotOpt()
     
     # where x^ denote the closest lattice point to x
     npairs = 0
-    for j in range(nB-1, -1, -1):
-        for i in range(j, -1, -1):
+    for j in range(nB-nV, -1, -nV):
+        for i in range(j, -1, -nV):
             # from vnn to vn-1 n-1
             pair_level[npairs] = dim
-            pair_x[npairs,:] = -(g[dim+j] - g[dim+i]) # centroid
+            
+            pair_x[npairs,:] = np.zeros(dim)
+            for n in range(nV):
+                pair_x[npairs,:] += -(g[dim+j+n] - g[dim+i+n])/nV # centroid
             pair_rho[npairs] = rho0
 
             # starting index in nB
-            pair_b1[npairs], pair_b2[npairs] = j, i
+            pair_p1[npairs], pair_p2[npairs] = j, i
             npairs += 1
     
     # Our criterion for which replicas to represent is based
@@ -525,7 +773,7 @@ def ListClosest(rho0: np.double):
         xx[0:level] = pair_x[npairs,0:level].copy()
 
         rho = pair_rho[npairs]
-        p1, p2 = pair_b1[npairs], pair_b2[npairs]
+        p1, p2 = pair_p1[npairs], pair_p2[npairs]
         idx[0:dim-level] = pair_idx[npairs,0:dim-level].copy()
         
         if (level > 0):
@@ -544,7 +792,7 @@ def ListClosest(rho0: np.double):
                 pair_x[npairs,0:level-1] = xx[0:level-1] - indice*g[k,0:level-1]
                 
                 pair_rho[npairs] = np.sqrt(rho**2 - (indice*vperp-xperp)**2)
-                pair_b1[npairs], pair_b2[npairs] = p1, p2
+                pair_p1[npairs], pair_p2[npairs] = p1, p2
                 pair_idx[npairs,0] = indice
                 pair_idx[npairs,1:dim-level+1] = idx[0:dim-level].copy()
                 
@@ -557,70 +805,29 @@ def ListClosest(rho0: np.double):
             
             i += 1
             if (p1 != p2 or i != dim):
-                pdc.Anew[nAnew,0:dim] = -0.6*toadd
-                pdc.Anew[nAnew,dim:] = np.zeros(nB)
-                pdc.Anew[nAnew,dim+p1] = 1.
-                nAnew += 1
+                for n in range(nV):
+                    pdc.Anew[nAnew,0:dim] = -0.6*toadd
+                    pdc.Anew[nAnew,dim:] = np.zeros(nB)
+                    pdc.Anew[nAnew,dim+p1+n] = 1.
+                    nAnew += 1
                 
-                pdc.Anew[nAnew,0:dim] = 0.4*toadd
-                pdc.Anew[nAnew,dim:] = np.zeros(nB)
-                pdc.Anew[nAnew,dim+p2] = 1.
-                nAnew += 1
+                for n in range(nV):
+                    pdc.Anew[nAnew,0:dim] = 0.4*toadd
+                    pdc.Anew[nAnew,dim:] = np.zeros(nB)
+                    pdc.Anew[nAnew,dim+p2+n] = 1.
+                    nAnew += 1
+            
+            if (nAnew > max_nA - 2*nV):
+                print("memory overflow")
 
     return nAnew
-
-def Ltrd():
-    """ Lattice reduction """
-    LRrnew = np.empty([dim+nB, dim+nB])
-    Hinvd = np.empty([dim+nB, dim+nB])
-    unew = np.empty([dim+nB, dim])
-  
-    # u' = H.u LLL-reduced, H = G = (G0 0, G1 1)
-    LRrnew[0:nB,0:dim] = pdc.u[dim:,:].copy() # u1
-    Hinvd[0:dim,0:dim] = pdc.u[0:dim,:].copy() # u0
-    
-    # u1 = LRrnew*u0, then LRrnew = u1*u0^-1
-    LRrnew[0:nB,0:dim] = np.matmul(LRrnew[0:nB,0:dim], np.linalg.inv(Hinvd[0:dim,0:dim]))
-    
-    unew[0:dim,:], H = LLL_reduction(pdc.u[0:dim,:], dim) # (dim, dim)
-    
-    print(unew[0:dim,:])
-    
-    Hd = np.zeros([dim+nB, dim+nB])
-    Hd[0:dim,0:dim] = np.double(H) # G0
-    # all primitive particles' centroids: -0.5<=Lambda<0.5
-    for i in range(dim, dim+nB):
-        for j in range(dim):
-            Hd[i,j] = -np.floor(0.5 + LRrnew[i-dim,j])
-    Hd[dim:,dim:] = np.diag(np.ones(nB))
-    
-    # Hinv = H^-1
-    Hinvd = np.diag(np.ones(dim+nB)) 
-    Hinvd[0:dim,0:dim] = np.linalg.inv(Hd[0:dim,0:dim])
-    
-    # unew = H.u
-    unew = np.matmul(Hd, pdc.u)
-    pdc.u = unew.copy()
-    
-    # Anew = A.Hinv (A' = )
-    pdc.Anew[0:pdc.nA,:] = np.matmul(pdc.Ad[0:pdc.nA,:], Hinvd) # (nA, dim+nP)
-    # A = Anew
-    pdc.Anew, pdc.Ad = pdc.Ad.copy(), pdc.Anew.copy()
-    
-    # LRr_new = H.LRr(old)
-    LRrnew = np.matmul(Hd, pdc.LRr)
-    pdc.LRr = LRrnew.copy()
-    
-    pdc.Al[0:pdc.nA,:] = pdc.Ad[0:pdc.nA,:].copy()
-    
-    if (pdc.nA > 2): pdc.Ad, pdc.Al = sortAold(pdc.Ad, pdc.Al, pdc.nA)
 
 def update_A():
     olda = np.empty(dim+nB, dtype=int)
     newa = np.empty(dim+nB, dtype=int)
     
-    outscribed_d = replica[0].outscribed_d
     nAnew = int(ListClosest(outscribed_d))
+    print(nAnew)
     
     pdc.Alnew[0:nAnew,:] = pdc.Anew[0:nAnew,:].copy() # (nAnew, dim+nP)
     pdc.xt = np.matmul(pdc.Anew[0:nAnew,:], pdc.u) # (nAnew, dim)
@@ -631,15 +838,15 @@ def update_A():
         # olda = A[j].LRr
         for k in range(dim+nB):
             olda[k] = 0
-            for m in range(2):
-                if (olda[k] == 0): olda[k] += int(np.floor(2*(pdc.Al[2*j+m,k])+0.5))
+            for m in range(2*nV):
+                if (olda[k] == 0): olda[k] += int(np.floor(2*(pdc.Al[2*nV*j+m,k])+0.5))
             
             newa[k] = 0
-            for m in range(2):
-                if (newa[k] == 0): newa[k] += int(np.floor(2*(pdc.Alnew[2*j+m,k])+0.5))
+            for m in range(2*nV):
+                if (newa[k] == 0): newa[k] += int(np.floor(2*(pdc.Alnew[2*nV*j+m,k])+0.5))
     
     while (True):
-        if (j >= int(pdc.nA/2) or i >= int(nAnew/2)): break
+        if (j >= int(pdc.nA/(2*nV)) or i >= int(nAnew/(2*nV))): break
         # compare olda and newa
         comp = 0
         for k in range(dim+nB-1, -1, -1):
@@ -651,44 +858,44 @@ def update_A():
                 break
         
         if (comp == 0):
-            pdc.xt[2*i:2*(i+1),:] = pdc.x[2*j:2*(j+1),:].copy()
+            pdc.xt[2*nV*i:2*(i+1),:] = pdc.x[2*nV*j:2*nV*(j+1),:].copy()
             pdc.Wnew[i] = pdc.W[j]
             i += 1
-            if (i >= int(nAnew/2)): break
+            if (i >= int(nAnew/(2*nV))): break
             for k in range(dim+nB):
                 newa[k] = 0
-                for m in range(2):
-                    if (newa[k] == 0): newa[k] += int(np.floor(2*(pdc.Alnew[2*i+m,k])+0.5))
+                for m in range(2*nV):
+                    if (newa[k] == 0): newa[k] += int(np.floor(2*(pdc.Alnew[2*nV*i+m,k])+0.5))
             
             j += 1
-            if (j >= int(pdc.nA/2)): break
+            if (j >= int(pdc.nA/(2*nV))): break
             for k in range(dim+nB):
                 olda[k] = 0
-                for m in range(2):
-                    if (olda[k] == 0): olda[k] += int(np.floor(2*(pdc.Al[2*j+m,k])+0.5))
+                for m in range(2*nV):
+                    if (olda[k] == 0): olda[k] += int(np.floor(2*(pdc.Al[2*nV*j+m,k])+0.5))
         
         elif (comp == -1): # newa > olda
             j += 1
-            if (j >= int(pdc.nA/2)): break
+            if (j >= int(pdc.nA/(2*nV))): break
             for k in range(dim+nB):
                 olda[k] = 0
-                for m in range(2):
-                    if (olda[k] == 0): olda[k] += int(np.floor(2*(pdc.Al[2*j+m,k])+0.5))
+                for m in range(2*nV):
+                    if (olda[k] == 0): olda[k] += int(np.floor(2*(pdc.Al[2*nV*j+m,k])+0.5))
         
         else: # newa < olda
-            pdc.Wnew[i], s = weight_func(pdc.xt[2*i:2*(i+1)], 20)
+            pdc.Wnew[i], s = weight_func(pdc.xt[2*nV*i:2*nV*(i+1)], 20)
             if (pdc.Wnew[i] > 1.): pdc.Wnew[i] = 1.
             i += 1
-            if (i >= int(nAnew/2)): break
+            if (i >= int(nAnew/(2*nV))): break
             for k in range(dim+nB):
                 newa[k] = 0
-                for m in range(2):
-                    if (newa[k] == 0): newa[k] += int(np.floor(2*(pdc.Alnew[2*i+m,k])+0.5))
+                for m in range(2*nV):
+                    if (newa[k] == 0): newa[k] += int(np.floor(2*(pdc.Alnew[2*nV*i+m,k])+0.5))
     
     # broken without populating Anew entirely               
-    if (i < int(nAnew/2)):
-        for t in range(i, int(nAnew/2)):
-            pdc.Wnew[t], s = weight_func(pdc.xt[2*i:2*(i+1)], 20)
+    if (i < int(nAnew/(2*nV))):
+        for t in range(i, int(nAnew/(2*nV))):
+            pdc.Wnew[t], s = weight_func(pdc.xt[2*nV*i:2*nV*(i+1)], 20)
             if (pdc.Wnew[t] > 1.): pdc.Wnew[t] = 1.
       
     # replace x with xt
@@ -754,7 +961,7 @@ def sortAold(Atosort: np.array, Altosort: np.array, nAtosort: int):
     rra1 = np.empty(dim+nB)
     rra2 = np.empty(dim+nB)
     
-    n = int(nAtosort/2)
+    n = int(nAtosort/(2*nV))
     
     l = n-1
     ir = n-1
@@ -764,46 +971,46 @@ def sortAold(Atosort: np.array, Altosort: np.array, nAtosort: int):
             l -= 1
             for k in range(dim+nB):
                 rra[k] = 0
-                for m in range(2):
-                    if (rra[k] == 0): rra[k] += np.floor(2*(Altosort[2*l+m,k])+0.5)
+                for m in range(2*nV):
+                    if (rra[k] == 0): rra[k] += np.floor(2*(Altosort[2*nV*l+m,k])+0.5)
             
-            atmp = Atosort[2*l:2*(l+1),:]
-            btmp = Altosort[2*l:2*(l+1),:]
-            xtmp = pdc.x[2*l:2*(l+1),:]
+            atmp = Atosort[2*nV*l:2*nV*(l+1),:].copy()
+            btmp = Altosort[2*nV*l:2*nV*(l+1),:].copy()
+            xtmp = pdc.x[2*nV*l:2*nV*(l+1),:].copy()
             Wtemp = pdc.W[l]
         else:
             for k in range(dim+nB):
                 rra[k] = 0
-                for m in range(2):
-                    if (rra[k] == 0): rra[k] += np.floor(2*(Altosort[2*ir+m,k])+0.5)
+                for m in range(2*nV):
+                    if (rra[k] == 0): rra[k] += np.floor(2*(Altosort[2*nV*ir+m,k])+0.5)
             
-            atmp = Atosort[2*ir:2*(ir+1),:]
-            btmp = Altosort[2*ir:2*(ir+1),:]
-            xtmp = pdc.x[2*ir:2*(ir+1),:]
+            atmp = Atosort[2*nV*ir:2*nV*(ir+1),:].copy()
+            btmp = Altosort[2*nV*ir:2*nV*(ir+1),:].copy()
+            xtmp = pdc.x[2*nV*ir:2*nV*(ir+1),:].copy()
             Wtemp = pdc.W[ir]
             
             # put Atosort[0] into Atosort[ir]
-            Atosort[2*ir:2*(ir+1),:] = Atosort[0:2,:]
-            Altosort[2*ir:2*(ir+1),:] = Altosort[0:2,:]
-            pdc.x[2*ir:2*(ir+1),:] = pdc.x[0:2,:]
+            Atosort[2*nV*ir:2*nV*(ir+1),:] = Atosort[0:2*nV,:].copy()
+            Altosort[2*nV*ir:2*nV*(ir+1),:] = Altosort[0:2*nV,:].copy()
+            pdc.x[2*nV*ir:2*nV*(ir+1),:] = pdc.x[0:2*nV,:].copy()
             pdc.W[ir] = pdc.W[0]
             
             ir -= 1
             if (ir == 0):
-                Atosort[0:2,:] = atmp
-                Altosort[0:2,:] = btmp
-                pdc.x[0:2,0:dim] = xtmp
+                Atosort[0:2*nV,:] = atmp.copy()
+                Altosort[0:2*nV,:] = btmp.copy()
+                pdc.x[0:2*nV,0:dim] = xtmp.copy()
                 pdc.W[0] = Wtemp
                 break
         
         i = l
-        j = l+1
+        j = l + 1
         while (j <= ir):
             for k in range(dim+nB):
                 rra1[k] = rra2[k] = 0
-                for m in range(2):
-                    if (rra1[k] == 0): rra1[k] += np.floor(2*(Altosort[2*j+m,k])+0.5)
-                    if (rra2[k] == 0): rra2[k] += np.floor(2*(Altosort[2*(j+1)+m,k])+0.5)
+                for m in range(2*nV):
+                    if (rra1[k] == 0): rra1[k] += np.floor(2*(Altosort[2*nV*j+m,k])+0.5)
+                    if (rra2[k] == 0): rra2[k] += np.floor(2*(Altosort[2*nV*(j+1)+m,k])+0.5)
             
             comp = 0
             for k in range(dim+nB-1, -1, -1):
@@ -828,21 +1035,21 @@ def sortAold(Atosort: np.array, Altosort: np.array, nAtosort: int):
                     break
             
             if (comp == -1):
-                Atosort[2*i:2*(i+1),:] = Atosort[2*j:2*(j+1),:]
-                Altosort[2*i:2*(i+1),:] = Altosort[2*j:2*(j+1),:]
-                pdc.x[2*i:2*(i+1),:] = pdc.x[2*j:2*(j+1),:]
+                Atosort[2*nV*i:2*nV*(i+1),:] = Atosort[2*nV*j:2*nV*(j+1),:].copy()
+                Altosort[2*nV*i:2*nV*(i+1),:] = Altosort[2*nV*j:2*nV*(j+1),:].copy()
+                pdc.x[2*nV*i:2*nV*(i+1),:] = pdc.x[2*nV*j:2*nV*(j+1),:].copy()
                 pdc.W[i] = pdc.W[j]
                 i = j
                 j <<= 1
             else: j = ir + 1
             
-        Atosort[2*i:2*(i+1),:] = atmp
-        Altosort[2*i:2*(i+1),:] = btmp
-        pdc.x[2*i:2*(i+1),:] = xtmp
+        Atosort[2*nV*i:2*nV*(i+1),:] = atmp.copy()
+        Altosort[2*nV*i:2*nV*(i+1),:] = btmp.copy()
+        pdc.x[2*nV*i:2*nV*(i+1),:] = xtmp.copy()
         pdc.W[i] = Wtemp
     
     return Atosort, Altosort
-                 
+                
 
 #=========================================================================#
 #  Visualization                                                          #
@@ -867,12 +1074,40 @@ if __name__ == '__main__':
     
     initialize(pd_target=0.75)
     
-    pdc.u[0:dim,:] = np.array([[3.852803, -0.002112, 0.005662],
-                              [0.005969, 3.854232, -0.006049],
-                              [-0.003296, 0.005365, 3.841554]])
+    # [3.852803, -0.002112, 0.005662],
+    #                           [0.005969, 3.854232, -0.006049],
+    #                           [-0.003296, 0.005365, 3.841554],
     
-    # Ltrd()
-    # update_A()
+    pdc.u[0:dim+nB,:] = np.array([[2., 20., 30.],
+                              [22., 1., 0.],
+                              [0., 10., 1.],
+                              [0.001079, -0.000452, 0.002577],
+                              [-0.002704, 0.000268, 0.009045],
+                              [0.008324, 0.002714, 0.004346],
+                              [-0.007168, 0.002139, -0.009674],
+                              [-0.005142, -0.007255, 0.006084],
+                              [-0.006866, -0.001981, -0.007404],
+                              [-0.007824, 0.009978, -0.005635],
+                              [0.000259, 0.006782, 0.002253],
+                              [-0.004079, 0.002751, 0.000486],
+                              [-0.000128, 0.009456, -0.004150],
+                              [0.005427, 0.000535, 0.005398],
+                              [-0.001995, 0.007831, -0.004334],
+                              [-0.002951, 0.006154, 0.008381],
+                              [-0.008605, 0.008987, 0.000520],
+                              [-0.008279, -0.006156, 0.003265],
+                              [0.007805, -0.003022, -0.008717],
+                              [-0.009600, -0.000846, -0.008738],
+                              [-0.005234, 0.009413, 0.008044],
+                              [0.007018, -0.004667, 0.000795],
+                              [-0.002496, 0.005205, 0.000251],
+                              [0.003354, 0.000632, -0.009214],
+                              [-0.001247, 0.008637, 0.008616],
+                              [0.004419, -0.004314, 0.004771],
+                              [0.002800, -0.002919, 0.003757]])
+    
+    Ltrd()
+    update_A()
     
     # # # plot()
     # err = update_weights()

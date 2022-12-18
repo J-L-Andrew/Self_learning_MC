@@ -496,8 +496,8 @@ def ListClosest(rho0: np.double):
     pair_x = np.empty([max_breadth*(dim+1), dim])
     pair_level = np.empty(max_breadth*(dim+1), dtype=int)
     pair_rho = np.empty(max_breadth*(dim+1))
-    pair_b1 = np.empty(max_breadth*(dim+1), dtype=int)
-    pair_b2 = np.empty(max_breadth*(dim+1), dtype=int)
+    pair_p1 = np.empty(max_breadth*(dim+1), dtype=int)
+    pair_p2 = np.empty(max_breadth*(dim+1), dtype=int)
     
     # perm: coordinate permutations
     g, perm = RotOpt()
@@ -512,7 +512,7 @@ def ListClosest(rho0: np.double):
             pair_rho[npairs] = rho0
 
             # starting index in nB
-            pair_b1[npairs], pair_b2[npairs] = j, i
+            pair_p1[npairs], pair_p2[npairs] = j, i
             npairs += 1
     
     # Our criterion for which replicas to represent is based
@@ -526,7 +526,7 @@ def ListClosest(rho0: np.double):
         xx[0:level] = pair_x[npairs,0:level].copy()
 
         rho = pair_rho[npairs]
-        p1, p2 = pair_b1[npairs], pair_b2[npairs]
+        p1, p2 = pair_p1[npairs], pair_p2[npairs]
         idx[0:dim-level] = pair_idx[npairs,0:dim-level].copy()
         
         if (level > 0):
@@ -545,7 +545,7 @@ def ListClosest(rho0: np.double):
                 pair_x[npairs,0:level-1] = xx[0:level-1] - indice*g[k,0:level-1]
                 
                 pair_rho[npairs] = np.sqrt(rho**2 - (indice*vperp-xperp)**2)
-                pair_b1[npairs], pair_b2[npairs] = p1, p2
+                pair_p1[npairs], pair_p2[npairs] = p1, p2
                 pair_idx[npairs,0] = indice
                 pair_idx[npairs,1:dim-level+1] = idx[0:dim-level].copy()
                 
@@ -567,6 +567,9 @@ def ListClosest(rho0: np.double):
                 pdc.Anew[nAnew,dim:] = np.zeros(nB)
                 pdc.Anew[nAnew,dim+p2] = 1.
                 nAnew += 1
+        
+        if (nAnew > max_nA - 2):
+            print("memory overflow")
 
     return nAnew
 
@@ -768,9 +771,9 @@ def sortAold(Atosort: np.array, Altosort: np.array, nAtosort: int):
                 for m in range(2):
                     if (rra[k] == 0): rra[k] += np.floor(2*(Altosort[2*l+m,k])+0.5)
             
-            atmp = Atosort[2*l:2*(l+1),:]
-            btmp = Altosort[2*l:2*(l+1),:]
-            xtmp = pdc.x[2*l:2*(l+1),:]
+            atmp = Atosort[2*l:2*(l+1),:].copy()
+            btmp = Altosort[2*l:2*(l+1),:].copy()
+            xtmp = pdc.x[2*l:2*(l+1),:].copy()
             Wtemp = pdc.W[l]
         else:
             for k in range(dim+nB):
@@ -778,22 +781,22 @@ def sortAold(Atosort: np.array, Altosort: np.array, nAtosort: int):
                 for m in range(2):
                     if (rra[k] == 0): rra[k] += np.floor(2*(Altosort[2*ir+m,k])+0.5)
             
-            atmp = Atosort[2*ir:2*(ir+1),:]
-            btmp = Altosort[2*ir:2*(ir+1),:]
-            xtmp = pdc.x[2*ir:2*(ir+1),:]
+            atmp = Atosort[2*ir:2*(ir+1),:].copy()
+            btmp = Altosort[2*ir:2*(ir+1),:].copy()
+            xtmp = pdc.x[2*ir:2*(ir+1),:].copy()
             Wtemp = pdc.W[ir]
             
             # put Atosort[0] into Atosort[ir]
-            Atosort[2*ir:2*(ir+1),:] = Atosort[0:2,:]
-            Altosort[2*ir:2*(ir+1),:] = Altosort[0:2,:]
-            pdc.x[2*ir:2*(ir+1),:] = pdc.x[0:2,:]
+            Atosort[2*ir:2*(ir+1),:] = Atosort[0:2,:].copy()
+            Altosort[2*ir:2*(ir+1),:] = Altosort[0:2,:].copy()
+            pdc.x[2*ir:2*(ir+1),:] = pdc.x[0:2,:].copy()
             pdc.W[ir] = pdc.W[0]
             
             ir -= 1
             if (ir == 0):
-                Atosort[0:2,:] = atmp
-                Altosort[0:2,:] = btmp
-                pdc.x[0:2,0:dim] = xtmp
+                Atosort[0:2,:] = atmp.copy()
+                Altosort[0:2,:] = btmp.copy()
+                pdc.x[0:2,0:dim] = xtmp.copy()
                 pdc.W[0] = Wtemp
                 break
         
@@ -829,17 +832,17 @@ def sortAold(Atosort: np.array, Altosort: np.array, nAtosort: int):
                     break
             
             if (comp == -1):
-                Atosort[2*i:2*(i+1),:] = Atosort[2*j:2*(j+1),:]
-                Altosort[2*i:2*(i+1),:] = Altosort[2*j:2*(j+1),:]
-                pdc.x[2*i:2*(i+1),:] = pdc.x[2*j:2*(j+1),:]
+                Atosort[2*i:2*(i+1),:] = Atosort[2*j:2*(j+1),:].copy()
+                Altosort[2*i:2*(i+1),:] = Altosort[2*j:2*(j+1),:].copy()
+                pdc.x[2*i:2*(i+1),:] = pdc.x[2*j:2*(j+1),:].copy()
                 pdc.W[i] = pdc.W[j]
                 i = j
                 j <<= 1
             else: j = ir + 1
             
-        Atosort[2*i:2*(i+1),:] = atmp
-        Altosort[2*i:2*(i+1),:] = btmp
-        pdc.x[2*i:2*(i+1),:] = xtmp
+        Atosort[2*i:2*(i+1),:] = atmp.copy()
+        Altosort[2*i:2*(i+1),:] = btmp.copy()
+        pdc.x[2*i:2*(i+1),:] = xtmp.copy()
         pdc.W[i] = Wtemp
     
     return Atosort, Altosort
