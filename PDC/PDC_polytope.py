@@ -628,10 +628,11 @@ def weight_func(pair: np.array):
     gs = np.empty([dim, dim])
     quad = np.empty([dim, dim])
     
-    s1 = np.sum(pair[0:nV,:], axis=0) / nV
-    s2 = np.sum(pair[nV:2*nV,:], axis=0) / nV
+    s1 = np.sum(pair[0:nV], axis=0) / nV
+    s2 = np.sum(pair[nV:2*nV], axis=0) / nV
     dist = norm(s1 - s2)
     
+    print(dist**2)
     if (dist**2 < 4.):
         js[0:dim-1] = np.arange(0, dim-1)
         js[dim-1] = nV
@@ -968,7 +969,7 @@ def update_A():
     # broken without populating Anew entirely               
     if (i < int(nAnew/(2*nV))):
         for t in range(i, int(nAnew/(2*nV))):
-            pdc.Wnew[t], s = weight_func(pdc.xt[2*nV*i:2*nV*(i+1)])
+            pdc.Wnew[t], s = weight_func(pdc.xt[2*nV*t:2*nV*(t+1)])
             if (pdc.Wnew[t] > 1.): pdc.Wnew[t] = 1.
       
     # replace x with xt
@@ -990,25 +991,27 @@ def calc_atwa():
     """ Used in Lattice constraint """
     # W is a diagonal matrix whose diagonal elements wi are the metric weights of different replicas
     # atwa = A^T . (W*A), Anew = W*A
-    # print(pdc.Ad[0:pdc.nA,:])
+    # print(pdc.Ad[0:pdc.nA,0:dim])
     for i in range(pdc.nA):
-        pdc.Anew[i,:] = pdc.W[int(i/(2*nV))] * pdc.Ad[i,:] # (nA, dim+nP)
+        pdc.Anew[i,:] = pdc.W[int(i/(2*nV))] * pdc.Ad[i,:] # (nA, dim+nB)
+        #print(pdc.W[int(i/(2*nV))])
     
     # atwa = A^T . Anew
-    pdc.atwa = np.matmul(pdc.Ad[0:pdc.nA,:].T, pdc.Anew[0:pdc.nA,:]) # (dim+nP, dim+nP)
+    pdc.atwa = np.matmul(pdc.Ad[0:pdc.nA,:].T, pdc.Anew[0:pdc.nA,:]) # (dim+nB, dim+nB)
     
-    atmp = pdc.atwa.copy()
     # atwainv = atwa^-1
     pdc.atwainv = np.linalg.pinv(pdc.atwa)
     
     # let w' = atwa, the wtemp = (W'11)^-1, i.e., (atwa11)^-1
-    wtemp = np.linalg.pinv(pdc.atwa[dim:,dim:]) # (nP, nP)
+    wtemp = np.linalg.pinv(pdc.atwa[dim:,dim:]) # (nB, nB)
     # mw11iw10 = -(W'11)^-1 * W'10 | (nB, nB)*(nB, dim)
-    # = - (atwa11)^-1 . atwa10, and m means minus, i means inverse
-    pdc.mw11iw10 = -np.matmul(wtemp, atmp[0:nB,0:dim]) # (nP, dim)
+    # = - (atwa11)^-1 * atwa10, and m means minus, i means inverse
+    pdc.mw11iw10 = -np.matmul(wtemp, pdc.atwa[dim:,0:dim]) # (nB, dim)
+    
+    # print(pdc.atwa[dim:,0:dim])
     
     # atwa2 = W'' = W'00 - W'01*(W'11)^-1 * W'10 = W'00 - W'01*temp
-    atmp[0:dim,:] = pdc.atwa[0:dim,:].copy() # W'0
+    atmp = pdc.atwa.copy()
     atmp[0:dim,0:dim] += np.matmul(pdc.atwa[0:dim,dim:], pdc.mw11iw10) # (dim, dim)
     
     print(atmp[0:dim,0:dim])
@@ -1017,7 +1020,7 @@ def calc_atwa():
     # let Q = W^-1/2, then V1 (V_target) = V0*det(Q)
     pdc.V1 = pdc.V0
     for i in range(dim): pdc.V1 *= np.sqrt(eigs[i])
-    print(pdc.V1)
+    print(eigs)
     
     # atwa = A.L.AT, eig_work=atmp=A
     # Qinv = W^1/2, so Qinv = A.(sqrt(L).AT) = A. (A.sqrt(L))T

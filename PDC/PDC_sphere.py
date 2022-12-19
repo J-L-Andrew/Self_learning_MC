@@ -480,10 +480,6 @@ def ListClosest(rho0: np.double):
     Parameters
     ----------
     rho0: pper bound on ||x^ - x||
-    
-    Return
-    ----------
-    g, h
     """
     # initilization
     max_breadth = 100
@@ -507,7 +503,7 @@ def ListClosest(rho0: np.double):
         for i in range(j, -1, -1):
             # from vnn to vn-1 n-1
             pair_level[npairs] = dim
-            pair_x[npairs,:] = -(g[dim+j] - g[dim+i]) # centroid
+            pair_x[npairs] = -(g[dim+j] - g[dim+i]) # centroid
             pair_rho[npairs] = rho0
 
             # starting index in nB
@@ -587,8 +583,6 @@ def Ltrd():
     LRrnew[0:nB,0:dim] = np.matmul(LRrnew[0:nB,0:dim], np.linalg.inv(Hinvd[0:dim,0:dim]))
     
     unew[0:dim,:], H = LLL_reduction(pdc.u[0:dim,:], dim) # (dim, dim)
-    
-    print(unew[0:dim,:])
     
     Hd = np.zeros([dim+nB, dim+nB])
     Hd[0:dim,0:dim] = np.double(H) # G0
@@ -691,7 +685,7 @@ def update_A():
     # broken without populating Anew entirely               
     if (i < int(nAnew/2)):
         for t in range(i, int(nAnew/2)):
-            pdc.Wnew[t], s = weight_func(pdc.xt[2*i:2*(i+1)], 20)
+            pdc.Wnew[t], s = weight_func(pdc.xt[2*t:2*(t+1)], 20)
             if (pdc.Wnew[t] > 1.): pdc.Wnew[t] = 1.
       
     # replace x with xt
@@ -717,7 +711,6 @@ def calc_atwa():
     # atwa = A^T . Anew
     pdc.atwa = np.matmul(pdc.Ad[0:pdc.nA,:].T, pdc.Anew[0:pdc.nA,:]) # (dim+nP, dim+nP)
     
-    atmp = pdc.atwa.copy()
     # atwainv = atwa^-1
     pdc.atwainv = np.linalg.pinv(pdc.atwa)
     
@@ -725,9 +718,10 @@ def calc_atwa():
     wtemp = np.linalg.pinv(pdc.atwa[dim:,dim:]) # (nP, nP)
     # mw11iw10 = -(W'11)^-1 * W'10 | (nB, nB)*(nB, dim)
     # = - (atwa11)^-1 . atwa10, and m means minus, i means inverse
-    pdc.mw11iw10 = -np.matmul(wtemp, atmp[0:nB,0:dim]) # (nP, dim)
+    pdc.mw11iw10 = -np.matmul(wtemp, pdc.atwa[dim:,0:dim]) # (nP, dim)
     
     # atwa2 = W'' = W'00 - W'01*(W'11)^-1 * W'10 = W'00 - W'01*temp
+    atmp = pdc.atwa.copy()
     atmp[0:dim,:] = pdc.atwa[0:dim,:].copy() # W'0
     atmp[0:dim,0:dim] += np.matmul(pdc.atwa[0:dim,dim:], pdc.mw11iw10) # (dim, dim)
     
