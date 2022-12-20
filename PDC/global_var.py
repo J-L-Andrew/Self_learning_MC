@@ -56,6 +56,8 @@ class pdc(object):
         self.x1 = np.empty([max_nA, dim]) # divide projection
         self.x2 = np.empty([max_nA, dim]) # concur projection
         self.xt = np.empty([max_nA, dim])
+        
+        self.ref = np.empty([nV, dim])
 
         # linear map
         self.Ad = np.empty([max_nA, dim+nB])

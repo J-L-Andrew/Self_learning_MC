@@ -201,17 +201,26 @@ def divide(input: np.array):
 #=========================================================================#
 def proj_rigid(single: np.array):
     """ project basis points onto rigid bodies """
+    single_new = single.copy()
     
-    # single: means the parameter of a single particle
-    R = single[0:dim][:]
+    xavg = np.zeros(dim)
+    for i in range(nV):
+        for j in range(dim):
+            xavg[j] += single[i,j]/nV
+    for i in range(nV): single_new[i] -= xavg
     
-    U, Sigma, V = np.linalg.svd(R, full_matrices=True)
-    Sigma = np.ones(dim)
+    # XtY = X^T . Y
+    XtY = np.matmul(single_new.T, pdc.ref)
+    # svd of (XtY)^T = R^T Q P^T:
+    XtY, singval, vxy = np.linalg.svd(XtY)
+    XtY = XtY.T
+    vxy = vxy.T
     
-    temp = np.matmul(Sigma, V)
-    Rnew = np.matmul(U, temp)
-    
-    single_new = np.concatenate(Rnew, single[dim])
+    # Rot = R^T P^T
+    svd_work = np.matmul(XtY.T, vxy.T)
+    # out = Y.U
+    single_new = np.matmul(pdc.ref, svd_work)
+    for i in range(nV): single_new[i] += xavg
     
     return single_new
 
@@ -232,29 +241,30 @@ def zbrent(l1: np.double, l2: np.double, singval: np.array, branch: int):
     
     # fa, fb: bisection method
     if (branch == -1):
-        fa = np.prod(singval)
-        for i in range(dim): fa *= Lambda().func0(a/singval[i])
+        fa = 1.
+        for i in range(dim): fa *= singval[i]*Lambda().func0(a/singval[i])
         fa = fa/pdc.V1 - 1.
         
-        fb = np.prod(singval)
-        for i in range(dim): fb *= Lambda().func0(b/singval[i])
+        fb = 1.
+        for i in range(dim): fb *= singval[i]*Lambda().func0(b/singval[i])
         fb = fb/pdc.V1 - 1.
     else:
-        fa = np.prod(singval)
-        for i in range(dim-1): fa *= Lambda().func1(a/singval[i])
-        if (branch == 0): fa *= Lambda().func1(a/singval[dim-1]) 
-        else: fa *= Lambda().func2(a/singval[dim-1])
+        fa = 1.
+        for i in range(dim-1): fa *= singval[i]*Lambda().func1(a/singval[i])
+        if (branch == 0): fa *= singval[dim-1]*Lambda().func1(a/singval[dim-1]) 
+        else: fa *= singval[dim-1]*Lambda().func2(a/singval[dim-1])
         fa = fa/pdc.V1 - 1.
         
-        fb = np.prod(singval)
-        for i in range(dim-1): fb *= Lambda().func1(b/singval[i])
-        if (branch == 0): fb *= Lambda().func1(b/singval[dim-1]) 
-        else: fb *= Lambda().func2(b/singval[dim-1])
+        fb = 1.
+        for i in range(dim-1): fb *= singval[i]*Lambda().func1(b/singval[i])
+        if (branch == 0): fb *= singval[dim-1]*Lambda().func1(b/singval[dim-1]) 
+        else: fb *= singval[dim-1]*Lambda().func2(b/singval[dim-1])
         fb = fb/pdc.V1 - 1.
     
     precb = np.fabs(a)/2. + np.fabs(b)/2.
     if ((fa > 0. and fb > 0.) or  (fa < 0. and fb < 0.)):
         print("root isn't bracketed in brent")
+        return 0.
         
     d = e = np.fabs(b-a)
     fc = fb
@@ -268,27 +278,30 @@ def zbrent(l1: np.double, l2: np.double, singval: np.array, branch: int):
             a = b
             b = c
             c = a
+            fa = fb
+            fb = fc
+            fc = fa
             
         tol1 = 2.*brent_prec*np.fabs(precb) + 0.5*brent_acc
-        xm = 0.5*(c-b)
+        xm = 0.5 * (c-b)
         if (np.fabs(xm) <= tol1 or fb == 0.): break
         if (np.fabs(e) >= tol1 and np.fabs(fa) > np.fabs(fb)):
             s = fb/fa
             if (a == c):
                 p = 2.*xm*s
-                q = 1.-s
+                q = 1. - s
             else:
                 q = fa/fc
                 r = fb/fc
                 p = s*(2.*xm*q*(q-r)-(b-a)*(r-1.))
-                q=(q-1.)*(r-1.)*(s-1.)
+                q = (q-1.)*(r-1.)*(s-1.)
                 
             if (p > 0.): q = -q
             p = np.fabs(p)
-            min1 = 3.*xm*q-np.fabs(tol1*q)
+            min1 = 3.*xm*q - np.fabs(tol1*q)
             min2 = np.fabs(e*q)
                 
-            if (2.*p < np.min(min1, min2)):
+            if (2.*p < min(min1, min2)):
                 e = d
                 d = p/q
             else:
@@ -303,21 +316,22 @@ def zbrent(l1: np.double, l2: np.double, singval: np.array, branch: int):
         fa = fb
         if (np.fabs(d) > tol1): b += d
         else: 
-            temp = np.fabs(tol1) if xm>0. else -np.fabs(tol1)
+            temp = np.fabs(tol1) if xm > 0. else -np.fabs(tol1)
             b += temp
             
         if (branch == -1):
-            fb = np.prod(singval)
-            for i in range(dim): fb *= Lambda().func0(b/singval[i])
+            fb = 1.
+            for i in range(dim): fb *= singval[i]*Lambda().func0(b/singval[i])
             fb = fb/pdc.V1 - 1.
         else:
-            fb = np.prod(singval)
-            for i in range(dim-1): fb *= Lambda().func1(b/singval[i])
-            if (branch == 0): fb *= Lambda().func1(b/singval[dim-1])
-            else: fb *= Lambda().func2(b/singval[dim-1])
+            fb = 1.
+            for i in range(dim-1): fb *= singval[i]*Lambda().func1(b/singval[i])
+            if (branch == 0): fb *= singval[dim-1]*Lambda().func1(b/singval[dim-1])
+            else: fb *= singval[dim-1]*Lambda().func2(b/singval[dim-1])
             fb = fb/pdc.V1 - 1.
           
     if (iter == brent_itmax): print("too many iterations in root finding!")
+    
     # switch over to Newton's method
           
     if (a > b): 
@@ -357,18 +371,18 @@ def zbrent(l1: np.double, l2: np.double, singval: np.array, branch: int):
         if (xx < a or xx > b):
             xx = (a+b)/2.
             if (branch == -1):
-                ff = np.prod(singval)
-                for i in range(dim): ff *= Lambda().func0(xx/singval[i])
+                ff = 1.
+                for i in range(dim): ff *= singval[i]*Lambda().func0(xx/singval[i])
                 ff = ff/pdc.V1 - 1.
                       
                 dff = 0.
                 for i in range(dim): dff += Lambda().dfunc0(xx/singval[i])/(singval[i]*Lambda().func0(xx/singval[i]))
                 dff *= ff
             else:
-                ff = np.prod(singval)
-                for i in range(dim-1): ff *= Lambda().func1(xx/singval[i])
-                if (branch == 0): ff *= Lambda().func1(xx/singval[dim-1])
-                else: ff *= Lambda().func2(xx/singval[dim-1])
+                ff = 1.
+                for i in range(dim-1): ff *= singval[i]*Lambda().func1(xx/singval[i])
+                if (branch == 0): ff *= singval[dim-1]*Lambda().func1(xx/singval[dim-1])
+                else: ff *= singval[dim-1]*Lambda().func2(xx/singval[dim-1])
                 ff = ff/pdc.V1 - 1.
                       
                 dff = 0.
@@ -382,7 +396,7 @@ def zbrent(l1: np.double, l2: np.double, singval: np.array, branch: int):
               
         else:
             if (branch == -1):
-                ff = np.prod(singval)
+                ff = 1.
                 for i in range(dim): ff *= singval[i]*Lambda().func0(xx/singval[i])
                 ff = ff/pdc.V1 - 1.
                       
@@ -390,7 +404,7 @@ def zbrent(l1: np.double, l2: np.double, singval: np.array, branch: int):
                 for i in range(dim): dff+=Lambda().dfunc0(xx/singval[i])/(singval[i]*Lambda().func0(xx/singval[i]))
                 dff *= ff
             else:
-                ff = np.prod(singval)
+                ff = 1.
                 for i in range(dim-1): ff *= singval[i]*Lambda().func1(xx/singval[i])
                 if (branch == 0): ff *= singval[dim-1]*Lambda().func1(xx/singval[dim-1])
                 else: ff *= singval[dim-1]*Lambda().func2(xx/singval[dim-1])
@@ -411,71 +425,71 @@ def zbrent(l1: np.double, l2: np.double, singval: np.array, branch: int):
     return xx
    
 def concur(input: np.array):
-      
       out = input[0:pdc.nA,:].copy() # (nA, dim)
       # u = M_bar = atwainv . (Atran . W*input)
       for i in range(pdc.nA):
           out[i] = pdc.W[int(i/(2*nV))]*input[i]
       
-      AtranWin = np.matmul(pdc.Ad[0:pdc.nA,:].T, out) # (dim+nP, dim)
-      pdc.u = np.matmul(pdc.atwainv, AtranWin) # (dim+nP, dim)
+      AtranWin = np.matmul(pdc.Ad[0:pdc.nA,:].T, out) # (dim+nB, dim)
+      pdc.u = np.matmul(pdc.atwainv, AtranWin) # (dim+nB, dim)
       
       # L = Qinv*M0
       L = np.matmul(pdc.u[0:dim,:].T, pdc.Qinv.T)
-      # To do: what hell is fortran style?
-      #L = np.matmul(pdc.Qinv, pdc.u[0:dim,:]) # (dim, dim)
+      # L = np.matmul(pdc.Qinv, pdc.u[0:dim,:]) # (dim, dim)
       # U=plu (P), V=plv (R) (Kallus)
-      plu, singval, plv = np.linalg.svd(L,full_matrices=False)
+      plu, singval, plv = np.linalg.svd(L)
+      # follow dgesvd, stored columnwise
+      plu = plu.T
+      plv = plv.T
       
-      # we need to make sure that sigma 从大到小排序
       detL = np.prod(singval)
-      
       if (np.fabs(detL) > pdc.V1): 
-          for i in range(dim): detL *= Lambda().func1(singval[dim-1]/singval[i])
+          detL = 1.
+          for i in range(dim): detL *= singval[i]*Lambda().func1(singval[dim-1]/singval[i])
           
           if (np.fabs(detL) > pdc.V1):
               # need to use branch 2 for i=dim-1
               bracket = 0.
               
-              while True:
-                  bracket = singval[dim-1] - ((singval[dim-1] - bracket)/2.)
-                  detL = np.prod(singval)
-                  for i in range(dim-1): detL *= Lambda().func1(bracket/singval[i])
-                  detL *= Lambda().func2(bracket/singval[dim-1])
-                  if (np.fabs(detL) < pdc.V1): break
+              while (True):
+                  bracket = singval[dim-1] - (singval[dim-1] - bracket)/2.
+                  detL = 1.
+                  for i in range(dim-1): detL *= singval[i]*Lambda().func1(bracket/singval[i])
+                  detL *= singval[dim-1]*Lambda().func2(bracket/singval[dim-1])
+                  if (np.fabs(detL) > pdc.V1): break
               
               mu = zbrent(0., bracket, singval, 1)
               for i in range(dim-1): singval[i] *= Lambda().func1(mu/singval[i])
               singval[dim-1] *= Lambda().func2(mu/singval[dim-1])
           else:
               bracket = 0
-              while True:
-                  bracket = singval[dim-1] - ((singval[dim-1] - bracket)/2.)
-                  detL = np.prod(singval)
-                  for i in range(dim): detL *= Lambda().func1(bracket/singval[i])
-                  if (np.fabs(detL) > pdc.V1): break
+              while (True):
+                  bracket = singval[dim-1] - (singval[dim-1] - bracket)/2.
+                  detL = 1.
+                  for i in range(dim): detL *= singval[i]*Lambda().func1(bracket/singval[i])
+                  if (np.fabs(detL) < pdc.V1): break
               
               mu = zbrent(0., bracket, singval, 0)
               for i in range(dim): singval[i] *= Lambda().func1(mu/singval[i])
       else:
-          bracket = singval[dim-1]/1024.
-          
+          bracket = singval[dim-1] / 1024.
           while True:
               bracket *= 2.
-              detL = np.prod(singval)
-              for i in range(dim): detL *= Lambda().func0(bracket/singval[i])
-              if (np.fabs(detL) < pdc.V1): break
-              
+              detL = 1.
+              for i in range(dim): detL *= singval[i]*Lambda().func0(bracket/singval[i])
+              if (np.fabs(detL) > pdc.V1): break
+           
           mu = zbrent(0., bracket, singval, -1)
           for i in range(dim): singval[i] *= Lambda().func0(mu/singval[i])
       
       # let U0 = Q.P.SINGVAL.R
+      # R = SINGVAL.R = SINGVAL_i R_ij
       for i in range(dim):
           for j in range(dim):
-              plv[i] *= singval[j]
+              plv[i][j] *= singval[j]
 
       AtranWin = np.matmul(plu.T, plv.T) # (dim, dim)
-      
+      print(pdc.u)
       # dU = Q.AtranWin - U
       plu = np.matmul(pdc.Q, AtranWin) - pdc.u[0:dim,:]
       
@@ -485,10 +499,12 @@ def concur(input: np.array):
       # U += dU
       pdc.u[0:dim,:] += plu
       
-      # Rigidity constraint
-      # for i in range(nP): 
-      #     u[dim+i, dim+i+nP][:] = proj_rigid(u[dim+i, dim+i+nP][:])
       
+      # Rigidity constraint
+      for i in range(0, nB, nV): 
+          pdc.u[dim+i:dim+i+nV,:] = proj_rigid(pdc.u[dim+i:dim+i+nV,:])
+      
+      # out = A.u
       out = np.matmul(pdc.Ad[0:pdc.nA,:], pdc.u)
       
       return out
@@ -500,7 +516,8 @@ def concur(input: np.array):
 def initialize(pd_target: np.double):
     """ start from random initial configurations """
     pdc.nA = 0
-    pdc.V0 = nB*replica[0].volume / pd_target
+    # pdc.V0 = nB*replica[0].volume / pd_target
+    pdc.V0 = 4./3.*nP/pd_target
     
     pdc.LRr= np.diag(np.ones(dim+nB))
     
@@ -534,9 +551,11 @@ def dm_step():
     pdc.xt[0:pdc.nA,:] = 2.*pdc.x1[0:pdc.nA,:] - pdc.x[0:pdc.nA,:] # f_C(X)
     
     pdc.x2[0:pdc.nA,:] = concur(pdc.xt) # pi_
+    print(pdc.x2[0:20,:])
     # err <- ||XC - XD||
     delta = pdc.x1[0:pdc.nA] - pdc.x2[0:pdc.nA]
-    err = np.dot(delta, delta)
+    err = np.sum(delta*delta)
+    print(err)
     
     if (err > pdc.nA*maxstep):
         pdc.x1[0:pdc.nA] *= np.sqrt(maxstep*pdc.nA/err)
@@ -1177,6 +1196,9 @@ if __name__ == '__main__':
                               [0.004419, -0.004314, 0.004771],
                               [0.002800, -0.002919, 0.003757]])
     
+    pdc.ref = np.array([[1,0,0],[0,1,0],[0,0,1],[-1,0,0],[0,-1,0],[0,0,-1]])
+    
+    
     Ltrd()
     update_A()
     
@@ -1185,20 +1207,24 @@ if __name__ == '__main__':
     
     calc_atwa()
     
-    for i in range(500000):
+    # 500000
+    for i in range(1):
         err = dm_step()
+        print(err)
         
-        if ((i%50) == 49): Ltrd()
-        update_A()
-        err = update_weights()
-        calc_atwa()
+        # if ((i%50) == 49): Ltrd()
+        # update_A()
+        # err = update_weights()
+        # calc_atwa()
         
-        if (err < 8.e-11):
-            update_A()
-            err = update_weights()
+        # if (err < 8.e-11):
+        #     update_A()
+        #     err = update_weights()
+        #     print(err)
             
-            if (err < 8.e-11): break
-            
+        #     if (err < 8.e-11): break
+    
+    print("iteration count: ", i+1)
     
             
         

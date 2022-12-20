@@ -395,7 +395,7 @@ def dm_step():
     pdc.x2[0:pdc.nA,:] = concur(pdc.xt) # pi_
     # err <- ||XC - XD||
     delta = pdc.x1[0:pdc.nA] - pdc.x2[0:pdc.nA]
-    err = np.dot(delta, delta)
+    err = np.sum(delta*delta)
     
     if (err > pdc.nA*maxstep):
         pdc.x1[0:pdc.nA] *= np.sqrt(maxstep*pdc.nA/err)
