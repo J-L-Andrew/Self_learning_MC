@@ -33,78 +33,75 @@ class Lambda(object):
 #=========================================================================#
 def proj_nonoverlap(pair: np.array):
     """ the divide projection acts independently on each replica pair """
-    
-    # rotation matrix & translation vector (centroid)
     pair_new = pair.copy()
     
     js = np.empty(2*nV, dtype=int)
+    minjs = np.empty(2*nV, dtype=int)
     gs = np.empty([dim, dim])
     quad = np.empty([dim, dim])
     
-    s1 = np.sum(pair[0:nV,:], axis=1) / nV
-    s2 = np.sum(pair[nV:2*nV,:], axis=1) / nV
+    s1 = np.sum(pair[0:nV,:], axis=0) / nV
+    s2 = np.sum(pair[nV:2*nV,:], axis=0) / nV
     dist = norm(s1 - s2)
     
-    if (dist < outscribed_d):
-        for i in range(dim-1): js[i] = i
-        js[dim-1] = nV
+    if (dist**2 > 4.): return pair_new
+    
+    # check if pair is already non-overlapping
+    js[0:dim-1] = np.arange(0, dim-1)
+    js[dim-1] = nV
         
-        r2 = np.Infinity
+    while (True):
+        s1 = s2 = 0. # delta^2+(S) & delta^2-(S)
         
-        while (True):
-            s1 = s2 = 0. # delta^2+(S) & delta^2-(S)
+        for i in range(dim-1):
+            gs[i] = pair[js[i+1]] - pair[js[0]]
         
-            for i in range(dim-1):
-                gs[i] = pair[js[i+1]] - pair[js[0]]
+        quad[dim-1,0] = gs[0,1]*gs[1,2] - gs[0,2]*gs[1,1]
+        quad[dim-1,1] = gs[0,2]*gs[1,0] - gs[0,0]*gs[1,2]
+        quad[dim-1,2] = gs[0,0]*gs[1,1] - gs[0,1]*gs[1,0]
+        quad[dim-1] /= norm(quad[dim-1])
         
-            quad[dim-1,0] = gs[0,1]*gs[1,2] - gs[0,2]*gs[1,1]
-            quad[dim-1,1] = gs[0,2]*gs[1,0] - gs[0,0]*gs[1,2]
-            quad[dim-1,2] = gs[0,0]*gs[1,1] - gs[0,1]*gs[1,0]
-        
-            quad[dim-1] /= norm(quad[dim-1])
-        
-            for i in range(nV):
-                s = 0.
-                for j in range(dim):
-                    s += (pair[i,j] - pair[js[0],j])*quad[dim-1,j]
-                if (s < 0.): s1 += s**2
-                else: s2 += s**2
+        for i in range(nV):
+            s = 0.
+            for j in range(dim):
+                s += (pair[i,j] - pair[js[0],j])*quad[dim-1,j]
+            if (s < 0.): s1 += s**2
+            else: s2 += s**2
             
-            for i in range(nV, 2*nV):
-                s = 0.
-                for j in range(dim):
-                    s += (pair[i,j] - pair[js[0],j])*quad[dim-1,j]
-                if (s > 0.): s1 += s**2
-                else: s2 += s**2
+        for i in range(nV, 2*nV):
+            s = 0.
+            for j in range(dim):
+                s += (pair[i,j] - pair[js[0],j])*quad[dim-1,j]
+            if (s > 0.): s1 += s**2
+            else: s2 += s**2
             
-            s2 = min(s1, s2)
+        if (s1 < PLANE_TOL or s2 < PLANE_TOL): return pair_new
             
-            if (s2 < r2): r2 = s2
-            
-            js[dim-1] += 1
-            if (js[dim-1] == 2*nV):
-                k = 1
-                while (True):
-                    js[dim-1-k] += 1
-                    if (js[dim-1-k] == 2*nV-k): k += 1
-                    else: break
+        js[dim-1] += 1
+        if (js[dim-1] == 2*nV):
+            k = 1
+            while (True):
+                js[dim-1-k] += 1
+                if (js[dim-1-k] == 2*nV-k): k += 1
+                else: break
                 
-                if (js[0] >= nV): break
-                for i in range(k-1, -1, -1):
-                    js[dim-1-k] = js[dim-2-k] + 1
-                if (js[dim-1] < nV): js[dim-1] = nV
+            if (js[0] >= nV): break
+            for i in range(k-1, -1, -1):
+                js[dim-1-i] = js[dim-2-i] + 1
+            if (js[dim-1] < nV): js[dim-1] = nV
       
     # no co-1 plane saparates the two hulls
     nj = dim + 1
-    for i in range(2*dim): js[k] = k
+    js[0:2*dim] = np.arange(0, 2*dim)
     js[nj-1] = nV
     
     mind = bestatlevel = np.Infinity
     while (True):
+        # distance to coplane is given by smallest eig of X^T.X matrix
         xavg = np.zeros(dim)
         for i in range(nj):
-            for j in range(nj):
-                xavg[j] += pair[js[i],k]/nj
+            for j in range(dim):
+                xavg[j] += pair[js[i],j] / nj
         quad = np.zeros([dim, dim])
         
         for i in range(dim):
@@ -113,7 +110,10 @@ def proj_nonoverlap(pair: np.array):
                     quad[i,j] += (pair[js[k],i] - xavg[i])*(pair[js[k],j] - xavg[j])
         
         eigs, featurevector = np.linalg.eig(quad)
-        np.sort(eigs)
+        sorted_indices = np.argsort(eigs)
+        eigs = eigs[sorted_indices].copy()
+        featurevector = featurevector[sorted_indices].copy()
+        
         # check if projecting to the coplane satisfies the constraint
         # first row of quad has lowest eigenvector
         if (bestatlevel > eigs[0]):
@@ -121,37 +121,42 @@ def proj_nonoverlap(pair: np.array):
             bestchekedout = 0
         
         sign = 0.
+        index = 0
         for i in range(nV):
+            count = 0
             for j in range(nj):
                 if (i == js[j]): break
-                if (j == nj):
-                    s = 0.
-                    for k in range(dim):
-                        s += (pair[i,k] - xavg[k])*quad[0,k]
-                    if (sign == 0.):
-                        if (s < -PLANE_TOL): sign = -1.
-                        if (s > PLANE_TOL): sign = 1.
+                count += 1
+            if (count == nj):
+                s = 0.
+                for k in range(dim):
+                    s += (pair[i,k] - xavg[k])*featurevector[0,k]
+                if (sign == 0.):
+                    if (s < -PLANE_TOL): sign = -1.
+                    if (s > PLANE_TOL): sign = 1.
                     
-                    if (s*sign < -PLANE_TOL): break
+                if (s*sign < -PLANE_TOL): break
+            index += 1
         
-        i += 1
-        if (i == nV):
+        if (index == nV):
+            count = 0
             for i in range(nV, 2*nV):
                 for j in range(nj):
                     if (i == js[j]): break
-                    if (j == nj):
-                        s = 0.
-                        for k in range(dim):
-                            s += (pair[i,k] - xavg[k])*quad[0,k]
-                            if (s*sign > PLANE_TOL): break
+                    count += 1
+                if (count == nj):
+                    s = 0.
+                    for k in range(dim):
+                        s += (pair[i,k] - xavg[k])*featurevector[0,k]
+                        if (s*sign > PLANE_TOL): break
+                index += 1
             
-            i += 1
-            if (i == 2*nV):
+            if (index == 2*nV):
                 bestchekedout = 1
                 if (mind > eigs[0]):
                     mind = eigs[0]
                     minjs[0:nj] = js[0:nj].copy()
-                    mineig[0:dim] = quad[0,:].copy()
+                    mineig = featurevector[0,:].copy()
                     minnj = nj
                     
         js[nj-1] += 1
@@ -159,7 +164,7 @@ def proj_nonoverlap(pair: np.array):
             k = 1
             while (True):
                 js[nj-1-k] += 1
-                if (js[nj-1-k] == 2*nB-k): k += 1
+                if (js[nj-1-k] == 2*nV-k): k += 1
                 else: break
             for i in range(k-1, -1, -1):
                 js[nj-1-i] = js[nj-2-i] + 1
@@ -168,7 +173,7 @@ def proj_nonoverlap(pair: np.array):
                 if (bestchekedout == 1): break
                 nj += 1
                 if (nj > 2*nV-1): break
-                for i in range(nj-1): js[i] = i
+                js[0:nj-1] = np.arange(0, nj-1)
                 js[nj-1] = nV
     
     if (mind != np.Infinity):
@@ -185,8 +190,8 @@ def proj_nonoverlap(pair: np.array):
 
 def divide(input: np.array): 
     out = input[0:pdc.nA,:].copy() # (nA, dim)
-    for i in range(0, pdc.nA, 2):
-        out[i:i+2,:] = proj_nonoverlap(input[i:i+2,:])
+    for i in range(0, pdc.nA, 2*nV):
+        out[i:i+2*nV,:] = proj_nonoverlap(input[i:i+2*nV,:])
     
     return out
 
@@ -410,7 +415,7 @@ def concur(input: np.array):
       out = input[0:pdc.nA,:].copy() # (nA, dim)
       # u = M_bar = atwainv . (Atran . W*input)
       for i in range(pdc.nA):
-          out[i] = pdc.W[int(i/2)]*input[i]
+          out[i] = pdc.W[int(i/(2*nV))]*input[i]
       
       AtranWin = np.matmul(pdc.Ad[0:pdc.nA,:].T, out) # (dim+nP, dim)
       pdc.u = np.matmul(pdc.atwainv, AtranWin) # (dim+nP, dim)
@@ -807,7 +812,6 @@ def ListClosest(rho0: np.double):
     
     # perm: coordinate permutations
     g, perm = RotOpt()
-    print(perm)
     
     # where x^ denote the closest lattice point to x
     npairs = 0
@@ -882,8 +886,7 @@ def ListClosest(rho0: np.double):
                     pdc.Anew[nAnew,dim+p2+n] = 1.
                     nAnew += 1
             
-            if (nAnew > max_nA - 2*nV):
-                print("memory overflow")
+            if (nAnew > max_nA - 2*nV): print("memory overflow")
 
     return nAnew
 
@@ -892,7 +895,6 @@ def update_A():
     newa = np.empty(dim+nB, dtype=int)
     
     nAnew = int(ListClosest(4.))
-    print(pdc.Anew[0:nAnew,:])
     
     pdc.Alnew[0:nAnew,:] = pdc.Anew[0:nAnew,:].copy() # (nAnew, dim+nP)
     pdc.xt = np.matmul(pdc.Anew[0:nAnew,:], pdc.u) # (nAnew, dim)
@@ -971,8 +973,6 @@ def update_A():
     pdc.Ad, pdc.Anew = pdc.Anew.copy(), pdc.Ad.copy()
     pdc.Al, pdc.Alnew = pdc.Alnew.copy(), pdc.Al.copy()
     pdc.nA = nAnew
-    
-    # print(pdc.Ad[0:pdc.nA, 0:dim])
 
     # set x2 = A . u
     pdc.x2[0:pdc.nA,:] = np.matmul(pdc.Ad[0:pdc.nA,:], pdc.u) # (nA, dim)            
@@ -1001,8 +1001,6 @@ def calc_atwa():
     atmp[0:dim,0:dim] += np.matmul(pdc.atwa[0:dim,dim:], pdc.mw11iw10) # (dim, dim)
     
     eigs, featurevector = np.linalg.eig(atmp[0:dim,0:dim])
-    
-    # sort
     sorted_indices = np.argsort(eigs)
     eigs = eigs[sorted_indices].copy()
     featurevector = featurevector[sorted_indices].copy()
@@ -1187,19 +1185,19 @@ if __name__ == '__main__':
     
     calc_atwa()
     
-    # for i in range(500000):
-    #     err = dm_step()
+    for i in range(500000):
+        err = dm_step()
         
-    #     if ((i%50) == 49): Ltrd()
-    #     update_A()
-    #     err = update_weights()
-    #     calc_atwa()
+        if ((i%50) == 49): Ltrd()
+        update_A()
+        err = update_weights()
+        calc_atwa()
         
-    #     if (err < 8.e-11):
-    #         update_A()
-    #         err = update_weights()
+        if (err < 8.e-11):
+            update_A()
+            err = update_weights()
             
-    #         if (err < 8.e-11): break
+            if (err < 8.e-11): break
             
     
             

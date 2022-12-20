@@ -434,8 +434,52 @@ def update_weights():
 
 
 #=========================================================================#
-#  Maintenance                                                            #
+#  Formal configuration-space maintenance                                 #
 #=========================================================================# 
+def Ltrd():
+    """ Lattice reduction """
+    LRrnew = np.empty([dim+nB, dim+nB])
+    Hinvd = np.empty([dim+nB, dim+nB])
+    unew = np.empty([dim+nB, dim])
+  
+    # u' = H.u LLL-reduced, H = G = (G0 0, G1 1)
+    LRrnew[0:nB,0:dim] = pdc.u[dim:,:].copy() # u1
+    Hinvd[0:dim,0:dim] = pdc.u[0:dim,:].copy() # u0
+    
+    # u1 = LRrnew*u0, then LRrnew = u1*u0^-1
+    LRrnew[0:nB,0:dim] = np.matmul(LRrnew[0:nB,0:dim], np.linalg.inv(Hinvd[0:dim,0:dim]))
+    
+    unew[0:dim,:], H = LLL_reduction(pdc.u[0:dim,:], dim) # (dim, dim)
+    
+    Hd = np.zeros([dim+nB, dim+nB])
+    Hd[0:dim,0:dim] = np.double(H) # G0
+    # all primitive particles' centroids: -0.5<=Lambda<0.5
+    for i in range(dim, dim+nB):
+        for j in range(dim):
+            Hd[i,j] = -np.floor(0.5 + LRrnew[i-dim,j])
+    Hd[dim:,dim:] = np.diag(np.ones(nB))
+    
+    # Hinv = H^-1
+    Hinvd = np.diag(np.ones(dim+nB)) 
+    Hinvd[0:dim,0:dim] = np.linalg.inv(Hd[0:dim,0:dim])
+    
+    # unew = H.u
+    unew = np.matmul(Hd, pdc.u)
+    pdc.u = unew.copy()
+    
+    # Anew = A.Hinv (A' = )
+    pdc.Anew[0:pdc.nA,:] = np.matmul(pdc.Ad[0:pdc.nA,:], Hinvd) # (nA, dim+nP)
+    # A = Anew
+    pdc.Anew, pdc.Ad = pdc.Ad.copy(), pdc.Anew.copy()
+    
+    # LRr_new = H.LRr(old)
+    LRrnew = np.matmul(Hd, pdc.LRr)
+    pdc.LRr = LRrnew.copy()
+    
+    pdc.Al[0:pdc.nA,:] = pdc.Ad[0:pdc.nA,:].copy()
+    
+    if (pdc.nA > 2): pdc.Ad, pdc.Al = sortAold(pdc.Ad, pdc.Al, pdc.nA)
+
 def RotOpt():
     """ 
     Algorithm CLOSEPOINT adpated from "Closest Point Search in Lattices". step2: QR decomposition
@@ -444,8 +488,7 @@ def RotOpt():
     ----------
     g, h(int)
     """
-    h = np.zeros(dim, dtype=int)
-    for i in range(dim): h[i] = i
+    h = np.arange(0, dim, dtype=int)
 
     uu = np.zeros([dim, dim])
     # in the order u[h[0]], u[h[1]], ...
@@ -460,7 +503,7 @@ def RotOpt():
         for j in range(i): gs[i] -= np.dot(gs[i], gs[j])*gs[j]
         
         # normalized
-        gs[i] /= np.linalg.norm(gs[i])
+        gs[i] /= norm(gs[i])
     
     # g[0:dim][:] = G3 = G2 * Q^T (lower-triangular matrix)
     # let x = x * Q^T
@@ -569,49 +612,6 @@ def ListClosest(rho0: np.double):
 
     return nAnew
 
-def Ltrd():
-    """ Lattice reduction """
-    LRrnew = np.empty([dim+nB, dim+nB])
-    Hinvd = np.empty([dim+nB, dim+nB])
-    unew = np.empty([dim+nB, dim])
-  
-    # u' = H.u LLL-reduced, H = G = (G0 0, G1 1)
-    LRrnew[0:nB,0:dim] = pdc.u[dim:,:].copy() # u1
-    Hinvd[0:dim,0:dim] = pdc.u[0:dim,:].copy() # u0
-    
-    # u1 = LRrnew*u0, then LRrnew = u1*u0^-1
-    LRrnew[0:nB,0:dim] = np.matmul(LRrnew[0:nB,0:dim], np.linalg.inv(Hinvd[0:dim,0:dim]))
-    
-    unew[0:dim,:], H = LLL_reduction(pdc.u[0:dim,:], dim) # (dim, dim)
-    
-    Hd = np.zeros([dim+nB, dim+nB])
-    Hd[0:dim,0:dim] = np.double(H) # G0
-    # all primitive particles' centroids: -0.5<=Lambda<0.5
-    for i in range(dim, dim+nB):
-        for j in range(dim):
-            Hd[i,j] = -np.floor(0.5 + LRrnew[i-dim,j])
-    Hd[dim:,dim:] = np.diag(np.ones(nB))
-    
-    # Hinv = H^-1
-    Hinvd = np.diag(np.ones(dim+nB)) 
-    Hinvd[0:dim,0:dim] = np.linalg.inv(Hd[0:dim,0:dim])
-    
-    # unew = H.u
-    unew = np.matmul(Hd, pdc.u)
-    pdc.u = unew.copy()
-    
-    # Anew = A.Hinv (A' = )
-    pdc.Anew[0:pdc.nA,:] = np.matmul(pdc.Ad[0:pdc.nA,:], Hinvd) # (nA, dim+nP)
-    # A = Anew
-    pdc.Anew, pdc.Ad = pdc.Ad.copy(), pdc.Anew.copy()
-    
-    # LRr_new = H.LRr(old)
-    LRrnew = np.matmul(Hd, pdc.LRr)
-    pdc.LRr = LRrnew.copy()
-    
-    pdc.Al[0:pdc.nA,:] = pdc.Ad[0:pdc.nA,:].copy()
-    
-    if (pdc.nA > 2): pdc.Ad, pdc.Al = sortAold(pdc.Ad, pdc.Al, pdc.nA)
 
 def update_A():
     olda = np.empty(dim+nB, dtype=int)
@@ -704,7 +704,6 @@ def calc_atwa():
     """ Used in Lattice constraint """
     # W is a diagonal matrix whose diagonal elements wi are the metric weights of different replicas
     # atwa = A^T . (W*A), Anew = W*A
-    print(pdc.Ad[0:pdc.nA,:])
     for i in range(pdc.nA):
         pdc.Anew[i,:] = pdc.W[int(i/2)] * pdc.Ad[i,:] # (nA, dim+nP)
     
@@ -722,12 +721,9 @@ def calc_atwa():
     
     # atwa2 = W'' = W'00 - W'01*(W'11)^-1 * W'10 = W'00 - W'01*temp
     atmp = pdc.atwa.copy()
-    atmp[0:dim,:] = pdc.atwa[0:dim,:].copy() # W'0
     atmp[0:dim,0:dim] += np.matmul(pdc.atwa[0:dim,dim:], pdc.mw11iw10) # (dim, dim)
     
     eigs, featurevector = np.linalg.eig(atmp[0:dim,0:dim])
-    
-    # sort
     sorted_indices = np.argsort(eigs)
     eigs = eigs[sorted_indices]
     featurevector = featurevector[sorted_indices]
