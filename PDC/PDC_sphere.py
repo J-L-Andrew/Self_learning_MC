@@ -698,7 +698,7 @@ def update_A():
     pdc.nA = nAnew
 
     # set x2 = A . u
-    pdc.x2[pdc.nA,:] = np.matmul(pdc.Ad[pdc.nA,:], pdc.u) # (nA, dim)            
+    pdc.x2[0:pdc.nA,:] = np.matmul(pdc.Ad[0:pdc.nA,:], pdc.u) # (nA, dim)            
 
 def calc_atwa():
     """ Used in Lattice constraint """
@@ -725,26 +725,30 @@ def calc_atwa():
     atmp[0:dim,:] = pdc.atwa[0:dim,:].copy() # W'0
     atmp[0:dim,0:dim] += np.matmul(pdc.atwa[0:dim,dim:], pdc.mw11iw10) # (dim, dim)
     
-    print(atmp[0:dim,0:dim])
     eigs, featurevector = np.linalg.eig(atmp[0:dim,0:dim])
+    
+    # sort
+    sorted_indices = np.argsort(eigs)
+    eigs = eigs[sorted_indices]
+    featurevector = featurevector[sorted_indices]
     
     # let Q = W^-1/2, then V1 (V_target) = V0*det(Q)
     pdc.V1 = pdc.V0
     for i in range(dim): pdc.V1 *= np.sqrt(eigs[i])
-    print(pdc.V1)
     
     # atwa = A.L.AT, eig_work=atmp=A
     # Qinv = W^1/2, so Qinv = A.(sqrt(L).AT) = A. (A.sqrt(L))T
     # (A.sqrt(L)) = Aij sqrt(Lj)
+    eig_work = np.empty([dim, dim])
     for i in range(dim):
-        featurevector[i,:] = np.sqrt(eigs[i])*atmp[i,0:dim]
+        eig_work[i,:] = np.sqrt(eigs[i])*featurevector[i,:]
     
-    pdc.Qinv = np.matmul(atmp[0:dim,0:dim].T, featurevector)
+    pdc.Qinv = np.matmul(featurevector.T, eig_work)
     
     for i in range(dim): 
         for j in range(dim):
-            featurevector[i,j] /= eigs[i]
-    pdc.Q = np.matmul(atmp[0:dim,0:dim].T, featurevector)
+            eig_work[i,j] /= eigs[i]
+    pdc.Q = np.matmul(featurevector.T, eig_work)
 
 def sortAold(Atosort: np.array, Altosort: np.array, nAtosort: int):
     rra = np.empty(dim+nB)

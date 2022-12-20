@@ -4,6 +4,10 @@
 
 * The present code is based on the original C version written by Yoav Kallus
 * who kindly provides his code on demand.
+
+* u [lattice
+    centroid
+    rotmat ]
 """
 
 import numpy as np

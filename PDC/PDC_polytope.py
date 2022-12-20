@@ -632,7 +632,6 @@ def weight_func(pair: np.array):
     s2 = np.sum(pair[nV:2*nV], axis=0) / nV
     dist = norm(s1 - s2)
     
-    print(dist**2)
     if (dist**2 < 4.):
         js[0:dim-1] = np.arange(0, dim-1)
         js[dim-1] = nV
@@ -735,7 +734,6 @@ def Ltrd():
     
     # unew = H.u
     unew = np.matmul(Hd, pdc.u)
-    # print(unew)
     pdc.u = unew.copy()
     
     # Anew = A.Hinv (A' = )
@@ -778,11 +776,8 @@ def RotOpt():
     # g[0:dim][:] = G3 = G2 * Q^T (lower-triangular matrix)
     # let x = x * Q^T
     g = np.empty([dim+nB, dim])
-    print(pdc.u[dim:,:])
     g[0:dim,:] = np.matmul(uu, gs.T)
     g[dim:,:] = np.matmul(pdc.u[dim:,:], gs.T)
-    
-    print(gs)
     
     return g, h
 
@@ -835,7 +830,6 @@ def ListClosest(rho0: np.double):
     # a replica pair for each pair of particles whose centroids in the
     # concur estimate are closer than some cutoff distance
     nAnew = 0
-    cout = 0
     while (npairs > 0):
         npairs -= 1
         level = pair_level[npairs]
@@ -876,8 +870,6 @@ def ListClosest(rho0: np.double):
                 count += 1
             
             if (p1 != p2 or count != dim):
-                print(p1, p2, count)
-                cout += 1
                 for n in range(nV):
                     pdc.Anew[nAnew,0:dim] = -0.6*toadd
                     pdc.Anew[nAnew,dim:] = np.zeros(nB)
@@ -893,7 +885,6 @@ def ListClosest(rho0: np.double):
             if (nAnew > max_nA - 2*nV):
                 print("memory overflow")
 
-    print(cout)
     return nAnew
 
 def update_A():
@@ -981,20 +972,17 @@ def update_A():
     pdc.Al, pdc.Alnew = pdc.Alnew.copy(), pdc.Al.copy()
     pdc.nA = nAnew
     
-    print(pdc.nA)
     # print(pdc.Ad[0:pdc.nA, 0:dim])
 
     # set x2 = A . u
-    pdc.x2[pdc.nA,:] = np.matmul(pdc.Ad[pdc.nA,:], pdc.u) # (nA, dim)            
+    pdc.x2[0:pdc.nA,:] = np.matmul(pdc.Ad[0:pdc.nA,:], pdc.u) # (nA, dim)            
 
 def calc_atwa():
     """ Used in Lattice constraint """
     # W is a diagonal matrix whose diagonal elements wi are the metric weights of different replicas
     # atwa = A^T . (W*A), Anew = W*A
-    # print(pdc.Ad[0:pdc.nA,0:dim])
     for i in range(pdc.nA):
         pdc.Anew[i,:] = pdc.W[int(i/(2*nV))] * pdc.Ad[i,:] # (nA, dim+nB)
-        #print(pdc.W[int(i/(2*nV))])
     
     # atwa = A^T . Anew
     pdc.atwa = np.matmul(pdc.Ad[0:pdc.nA,:].T, pdc.Anew[0:pdc.nA,:]) # (dim+nB, dim+nB)
@@ -1008,32 +996,34 @@ def calc_atwa():
     # = - (atwa11)^-1 * atwa10, and m means minus, i means inverse
     pdc.mw11iw10 = -np.matmul(wtemp, pdc.atwa[dim:,0:dim]) # (nB, dim)
     
-    # print(pdc.atwa[dim:,0:dim])
-    
     # atwa2 = W'' = W'00 - W'01*(W'11)^-1 * W'10 = W'00 - W'01*temp
     atmp = pdc.atwa.copy()
     atmp[0:dim,0:dim] += np.matmul(pdc.atwa[0:dim,dim:], pdc.mw11iw10) # (dim, dim)
     
-    print(atmp[0:dim,0:dim])
     eigs, featurevector = np.linalg.eig(atmp[0:dim,0:dim])
     
+    # sort
+    sorted_indices = np.argsort(eigs)
+    eigs = eigs[sorted_indices].copy()
+    featurevector = featurevector[sorted_indices].copy()
+
     # let Q = W^-1/2, then V1 (V_target) = V0*det(Q)
     pdc.V1 = pdc.V0
     for i in range(dim): pdc.V1 *= np.sqrt(eigs[i])
-    print(eigs)
     
     # atwa = A.L.AT, eig_work=atmp=A
     # Qinv = W^1/2, so Qinv = A.(sqrt(L).AT) = A. (A.sqrt(L))T
     # (A.sqrt(L)) = Aij sqrt(Lj)
+    eig_work = np.empty([dim, dim])
     for i in range(dim):
-        featurevector[i,:] = np.sqrt(eigs[i])*atmp[i,0:dim]
+        eig_work[i,:] = np.sqrt(eigs[i])*featurevector[i,:]
     
-    pdc.Qinv = np.matmul(atmp[0:dim,0:dim].T, featurevector)
+    pdc.Qinv = np.matmul(featurevector.T, eig_work)
     
     for i in range(dim): 
         for j in range(dim):
-            featurevector[i,j] /= eigs[i]
-    pdc.Q = np.matmul(atmp[0:dim,0:dim].T, featurevector)
+            eig_work[i,j] /= eigs[i]
+    pdc.Q = np.matmul(featurevector.T, eig_work)
 
 def sortAold(Atosort: np.array, Altosort: np.array, nAtosort: int):
     rra = np.empty(dim+nB)
