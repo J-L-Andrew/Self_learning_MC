@@ -61,17 +61,14 @@ def proj_nonoverlap(pair: np.array):
         quad[dim-1,2] = gs[0,0]*gs[1,1] - gs[0,1]*gs[1,0]
         quad[dim-1] /= norm(quad[dim-1])
         
+        # now quad[dim-1,:] has vector defining plane
         for i in range(nV):
-            s = 0.
-            for j in range(dim):
-                s += (pair[i,j] - pair[js[0],j])*quad[dim-1,j]
+            s = np.dot(pair[i]-pair[js[0]], quad[dim-1])
             if (s < 0.): s1 += s**2
             else: s2 += s**2
             
         for i in range(nV, 2*nV):
-            s = 0.
-            for j in range(dim):
-                s += (pair[i,j] - pair[js[0],j])*quad[dim-1,j]
+            s = np.dot(pair[i]-pair[js[0]], quad[dim-1])
             if (s > 0.): s1 += s**2
             else: s2 += s**2
             
@@ -89,30 +86,31 @@ def proj_nonoverlap(pair: np.array):
             for i in range(k-1, -1, -1):
                 js[dim-1-i] = js[dim-2-i] + 1
             if (js[dim-1] < nV): js[dim-1] = nV
-      
+    
     # no co-1 plane saparates the two hulls
     nj = dim + 1
     js[0:2*dim] = np.arange(0, 2*dim)
     js[nj-1] = nV
     
     mind = bestatlevel = np.Infinity
+    gg = 0
     while (True):
+        gg += 1
         # distance to coplane is given by smallest eig of X^T.X matrix
         xavg = np.zeros(dim)
         for i in range(nj):
             for j in range(dim):
                 xavg[j] += pair[js[i],j] / nj
+                
         quad = np.zeros([dim, dim])
-        
         for i in range(dim):
             for j in range(dim):
                 for k in range(nj):
                     quad[i,j] += (pair[js[k],i] - xavg[i])*(pair[js[k],j] - xavg[j])
         
-        eigs, featurevector = np.linalg.eig(quad)
-        sorted_indices = np.argsort(eigs)
-        eigs = eigs[sorted_indices].copy()
-        featurevector = featurevector[sorted_indices].copy()
+        #print("quad",gg, quad[0])
+        eigs, featurevector = np.linalg.eigh(quad)
+        featurevector = featurevector.T
         
         # check if projecting to the coplane satisfies the constraint
         # first row of quad has lowest eigenvector
@@ -139,8 +137,8 @@ def proj_nonoverlap(pair: np.array):
             index += 1
         
         if (index == nV):
-            count = 0
             for i in range(nV, 2*nV):
+                count = 0
                 for j in range(nj):
                     if (i == js[j]): break
                     count += 1
@@ -148,7 +146,7 @@ def proj_nonoverlap(pair: np.array):
                     s = 0.
                     for k in range(dim):
                         s += (pair[i,k] - xavg[k])*featurevector[0,k]
-                        if (s*sign > PLANE_TOL): break
+                    if (s*sign > PLANE_TOL): break
                 index += 1
             
             if (index == 2*nV):
@@ -166,9 +164,11 @@ def proj_nonoverlap(pair: np.array):
                 js[nj-1-k] += 1
                 if (js[nj-1-k] == 2*nV-k): k += 1
                 else: break
+                
             for i in range(k-1, -1, -1):
                 js[nj-1-i] = js[nj-2-i] + 1
             if (js[nj-1] < nV): js[nj-1] = nV
+            
             if (js[0] >= nV):
                 if (bestchekedout == 1): break
                 nj += 1
@@ -176,6 +176,7 @@ def proj_nonoverlap(pair: np.array):
                 js[0:nj-1] = np.arange(0, nj-1)
                 js[nj-1] = nV
     
+    print("mineig", mineig)
     if (mind != np.Infinity):
         s = 0.
         for i in range(minnj):
@@ -191,6 +192,7 @@ def proj_nonoverlap(pair: np.array):
 def divide(input: np.array): 
     out = input[0:pdc.nA,:].copy() # (nA, dim)
     for i in range(0, pdc.nA, 2*nV):
+        #i=504
         out[i:i+2*nV,:] = proj_nonoverlap(input[i:i+2*nV,:])
     
     return out
@@ -429,13 +431,9 @@ def concur(input: np.array):
     # u = M_bar = atwainv . (Atran . W*input)
     for i in range(pdc.nA):
         out[i] = pdc.W[int(i/(2*nV))]*input[i]
-    
-    # print("Ad")
-    # print(pdc.Ad[0:pdc.nA,0:5])
-    # Todo: inconsistency in AtranWin
+
     AtranWin = np.matmul(pdc.Ad[0:pdc.nA,:].T, out) # (dim+nB, dim)
-    print("Atrwan")
-    print(AtranWin)
+    
     pdc.u = np.matmul(pdc.atwainv, AtranWin) # (dim+nB, dim)
       
     # L = Qinv*M0
@@ -446,6 +444,8 @@ def concur(input: np.array):
     # follow dgesvd, stored columnwise
     plu = plu.T
     plv = plv.T
+    print("plu", plu)
+    print("plv", plv)
       
     detL = np.prod(singval)
     if (np.fabs(detL) > pdc.V1): 
@@ -494,7 +494,6 @@ def concur(input: np.array):
             plv[i][j] *= singval[j]
 
     AtranWin = np.matmul(plu.T, plv.T) # (dim, dim)
-    print(pdc.u)
     # dU = Q.AtranWin - U
     plu = np.matmul(pdc.Q, AtranWin) - pdc.u[0:dim,:]
       
@@ -551,6 +550,7 @@ def dm_step():
     # f_D(X) = (1-1/beta)*pi_D(X) + 1/beta*X = X
     # f_C(X) = (1+1/beta)*pi_C(X) - 1/beta*X = 2*pi_C(X) - X
     pdc.x1[0:pdc.nA,:] = divide(pdc.x) # pi_D(X)
+    print(pdc.x1[511,0])
     
     pdc.xt[0:pdc.nA,:] = 2.*pdc.x1[0:pdc.nA,:] - pdc.x[0:pdc.nA,:] # f_C(X)
   
@@ -1023,10 +1023,12 @@ def calc_atwa():
     atmp = pdc.atwa.copy()
     atmp[0:dim,0:dim] += np.matmul(pdc.atwa[0:dim,dim:], pdc.mw11iw10) # (dim, dim)
     
-    eigs, featurevector = np.linalg.eig(atmp[0:dim,0:dim])
-    sorted_indices = np.argsort(eigs)
-    eigs = eigs[sorted_indices].copy()
-    featurevector = featurevector[sorted_indices].copy()
+    eigs, featurevector = np.linalg.eigh(atmp[0:dim,0:dim])
+    featurevector = featurevector.T
+    # eigs, featurevector = np.linalg.eig(atmp[0:dim,0:dim])
+    # sorted_indices = np.argsort(eigs)
+    # eigs = eigs[sorted_indices].copy()
+    # featurevector = featurevector[sorted_indices].copy()
 
     # let Q = W^-1/2, then V1 (V_target) = V0*det(Q)
     pdc.V1 = pdc.V0
@@ -1213,9 +1215,9 @@ if __name__ == '__main__':
     
     calc_atwa()
     
-    # # 500000
-    # for i in range(1):
-    #     err = dm_step()
+    # 500000
+    for i in range(1):
+        err = dm_step()
     #     print(err)
         
         # if ((i%50) == 49): Ltrd()
