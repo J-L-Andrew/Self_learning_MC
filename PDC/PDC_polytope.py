@@ -425,89 +425,94 @@ def zbrent(l1: np.double, l2: np.double, singval: np.array, branch: int):
     return xx
    
 def concur(input: np.array):
-      out = input[0:pdc.nA,:].copy() # (nA, dim)
-      # u = M_bar = atwainv . (Atran . W*input)
-      for i in range(pdc.nA):
-          out[i] = pdc.W[int(i/(2*nV))]*input[i]
+    out = input[0:pdc.nA,:].copy() # (nA, dim)
+    # u = M_bar = atwainv . (Atran . W*input)
+    for i in range(pdc.nA):
+        out[i] = pdc.W[int(i/(2*nV))]*input[i]
+    
+    # print("Ad")
+    # print(pdc.Ad[0:pdc.nA,0:5])
+    # Todo: inconsistency in AtranWin
+    AtranWin = np.matmul(pdc.Ad[0:pdc.nA,:].T, out) # (dim+nB, dim)
+    print("Atrwan")
+    print(AtranWin)
+    pdc.u = np.matmul(pdc.atwainv, AtranWin) # (dim+nB, dim)
       
-      AtranWin = np.matmul(pdc.Ad[0:pdc.nA,:].T, out) # (dim+nB, dim)
-      pdc.u = np.matmul(pdc.atwainv, AtranWin) # (dim+nB, dim)
+    # L = Qinv*M0
+    L = np.matmul(pdc.u[0:dim,:].T, pdc.Qinv.T)
+    # L = np.matmul(pdc.Qinv, pdc.u[0:dim,:]) # (dim, dim)
+    # U=plu (P), V=plv (R) (Kallus)
+    plu, singval, plv = np.linalg.svd(L)
+    # follow dgesvd, stored columnwise
+    plu = plu.T
+    plv = plv.T
       
-      # L = Qinv*M0
-      L = np.matmul(pdc.u[0:dim,:].T, pdc.Qinv.T)
-      # L = np.matmul(pdc.Qinv, pdc.u[0:dim,:]) # (dim, dim)
-      # U=plu (P), V=plv (R) (Kallus)
-      plu, singval, plv = np.linalg.svd(L)
-      # follow dgesvd, stored columnwise
-      plu = plu.T
-      plv = plv.T
-      
-      detL = np.prod(singval)
-      if (np.fabs(detL) > pdc.V1): 
-          detL = 1.
-          for i in range(dim): detL *= singval[i]*Lambda().func1(singval[dim-1]/singval[i])
+    detL = np.prod(singval)
+    if (np.fabs(detL) > pdc.V1): 
+        detL = 1.
+        for i in range(dim): detL *= singval[i]*Lambda().func1(singval[dim-1]/singval[i])
           
-          if (np.fabs(detL) > pdc.V1):
-              # need to use branch 2 for i=dim-1
-              bracket = 0.
+        if (np.fabs(detL) > pdc.V1):
+            # need to use branch 2 for i=dim-1
+            bracket = 0.
               
-              while (True):
-                  bracket = singval[dim-1] - (singval[dim-1] - bracket)/2.
-                  detL = 1.
-                  for i in range(dim-1): detL *= singval[i]*Lambda().func1(bracket/singval[i])
-                  detL *= singval[dim-1]*Lambda().func2(bracket/singval[dim-1])
-                  if (np.fabs(detL) > pdc.V1): break
+            while (True):
+                bracket = singval[dim-1] - (singval[dim-1] - bracket)/2.
+                detL = 1.
+                for i in range(dim-1): detL *= singval[i]*Lambda().func1(bracket/singval[i])
+                detL *= singval[dim-1]*Lambda().func2(bracket/singval[dim-1])
+                if (np.fabs(detL) > pdc.V1): break
               
-              mu = zbrent(0., bracket, singval, 1)
-              for i in range(dim-1): singval[i] *= Lambda().func1(mu/singval[i])
-              singval[dim-1] *= Lambda().func2(mu/singval[dim-1])
-          else:
-              bracket = 0
-              while (True):
-                  bracket = singval[dim-1] - (singval[dim-1] - bracket)/2.
-                  detL = 1.
-                  for i in range(dim): detL *= singval[i]*Lambda().func1(bracket/singval[i])
-                  if (np.fabs(detL) < pdc.V1): break
+            mu = zbrent(0., bracket, singval, 1)
+            for i in range(dim-1): singval[i] *= Lambda().func1(mu/singval[i])
+            singval[dim-1] *= Lambda().func2(mu/singval[dim-1])
+        else:
+            bracket = 0
+            while (True):
+                bracket = singval[dim-1] - (singval[dim-1] - bracket)/2.
+                detL = 1.
+                for i in range(dim): detL *= singval[i]*Lambda().func1(bracket/singval[i])
+                if (np.fabs(detL) < pdc.V1): break
               
-              mu = zbrent(0., bracket, singval, 0)
-              for i in range(dim): singval[i] *= Lambda().func1(mu/singval[i])
-      else:
-          bracket = singval[dim-1] / 1024.
-          while True:
-              bracket *= 2.
-              detL = 1.
-              for i in range(dim): detL *= singval[i]*Lambda().func0(bracket/singval[i])
-              if (np.fabs(detL) > pdc.V1): break
+            mu = zbrent(0., bracket, singval, 0)
+            for i in range(dim): singval[i] *= Lambda().func1(mu/singval[i])
+    else:
+        bracket = singval[dim-1] / 1024.
+        while True:
+            bracket *= 2.
+            detL = 1.
+            for i in range(dim): detL *= singval[i]*Lambda().func0(bracket/singval[i])
+            if (np.fabs(detL) > pdc.V1): break
            
-          mu = zbrent(0., bracket, singval, -1)
-          for i in range(dim): singval[i] *= Lambda().func0(mu/singval[i])
+        mu = zbrent(0., bracket, singval, -1)
+        for i in range(dim): singval[i] *= Lambda().func0(mu/singval[i])
       
-      # let U0 = Q.P.SINGVAL.R
-      # R = SINGVAL.R = SINGVAL_i R_ij
-      for i in range(dim):
-          for j in range(dim):
-              plv[i][j] *= singval[j]
+    # let U0 = Q.P.SINGVAL.R
+    # R = SINGVAL.R = SINGVAL_i R_ij
+    for i in range(dim):
+        for j in range(dim):
+            plv[i][j] *= singval[j]
 
-      AtranWin = np.matmul(plu.T, plv.T) # (dim, dim)
-      print(pdc.u)
-      # dU = Q.AtranWin - U
-      plu = np.matmul(pdc.Q, AtranWin) - pdc.u[0:dim,:]
+    AtranWin = np.matmul(plu.T, plv.T) # (dim, dim)
+    print(pdc.u)
+    # dU = Q.AtranWin - U
+    plu = np.matmul(pdc.Q, AtranWin) - pdc.u[0:dim,:]
       
-      # then let U1 += (-atwa11inv . atwa10) . (U0 - U0init)
-      pdc.u[dim:,:] += np.matmul(pdc.mw11iw10, plu)
+    # then let U1 += (-atwa11inv . atwa10) . (U0 - U0init)
+    pdc.u[dim:,:] += np.matmul(pdc.mw11iw10, plu)
       
-      # U += dU
-      pdc.u[0:dim,:] += plu
+    # U += dU
+    pdc.u[0:dim,:] += plu
       
       
-      # Rigidity constraint
-      for i in range(0, nB, nV): 
-          pdc.u[dim+i:dim+i+nV,:] = proj_rigid(pdc.u[dim+i:dim+i+nV,:])
+    # Rigidity constraint
+    for i in range(0, nB, nV): 
+        pdc.u[dim+i:dim+i+nV,:] = proj_rigid(pdc.u[dim+i:dim+i+nV,:])
+    
+    # out = A.u
+    out = np.matmul(pdc.Ad[0:pdc.nA,:], pdc.u)
       
-      # out = A.u
-      out = np.matmul(pdc.Ad[0:pdc.nA,:], pdc.u)
-      
-      return out
+    return out
 
 
 #=========================================================================#
@@ -542,16 +547,15 @@ def initialize(pd_target: np.double):
     packing.cell.color = np.array([0.25,0.25,0.25])
     
 def dm_step():
-    err = 0.
     
     # f_D(X) = (1-1/beta)*pi_D(X) + 1/beta*X = X
     # f_C(X) = (1+1/beta)*pi_C(X) - 1/beta*X = 2*pi_C(X) - X
     pdc.x1[0:pdc.nA,:] = divide(pdc.x) # pi_D(X)
     
     pdc.xt[0:pdc.nA,:] = 2.*pdc.x1[0:pdc.nA,:] - pdc.x[0:pdc.nA,:] # f_C(X)
-    
+  
     pdc.x2[0:pdc.nA,:] = concur(pdc.xt) # pi_
-    print(pdc.x2[0:20,:])
+    # print(pdc.x2[0:20,:])
     # err <- ||XC - XD||
     delta = pdc.x1[0:pdc.nA] - pdc.x2[0:pdc.nA]
     err = np.sum(delta*delta)
@@ -740,6 +744,7 @@ def Ltrd():
     
     # u1 = LRrnew*u0, then LRrnew = u1*u0^-1
     LRrnew[0:nB,0:dim] = np.matmul(LRrnew[0:nB,0:dim], np.linalg.inv(Hinvd[0:dim,0:dim]))
+    print(LRrnew[0:nB,0:dim])
     
     unew[0:dim,:], H = LLL_reduction(pdc.u[0:dim,:], dim) # (dim, dim)
     
@@ -760,13 +765,13 @@ def Ltrd():
     unew = np.matmul(Hd, pdc.u)
     pdc.u = unew.copy()
     
-    # Anew = A.Hinv (A' = )
-    pdc.Anew[0:pdc.nA,:] = np.matmul(pdc.Ad[0:pdc.nA,:], Hinvd) # (nA, dim+nP)
+    # Anew = A.Hinv
+    pdc.Anew[0:pdc.nA,:] = np.matmul(pdc.Ad[0:pdc.nA,:], Hinvd) # (nA, dim+nB)
     # A = Anew
     pdc.Anew, pdc.Ad = pdc.Ad.copy(), pdc.Anew.copy()
     
     # LRr_new = H.LRr(old)
-    LRrnew = np.matmul(Hd, pdc.LRr)
+    LRrnew = np.matmul(Hd, pdc.LRr) # (dim+nB, dim+nB)
     pdc.LRr = LRrnew.copy()
     
     pdc.Al[0:pdc.nA,:] = pdc.Ad[0:pdc.nA,:].copy()
@@ -884,7 +889,6 @@ def ListClosest(rho0: np.double):
                 
                 npairs += 1
         else:
-            # cout += 1
             for i in range(dim): toadd[perm[i]] = -idx[i]
             
             count = 0
@@ -920,8 +924,8 @@ def update_A():
     pdc.x2[0:nAnew,:] = pdc.xt[0:nAnew,:].copy()
     
     j = i = int(0)
+    # olda = A[j].LRr
     if (pdc.nA > 0):
-        # olda = A[j].LRr
         for k in range(dim+nB):
             olda[k] = 0
             for m in range(2*nV):
@@ -994,20 +998,20 @@ def update_A():
     pdc.nA = nAnew
 
     # set x2 = A . u
-    pdc.x2[0:pdc.nA,:] = np.matmul(pdc.Ad[0:pdc.nA,:], pdc.u) # (nA, dim)            
+    pdc.x2[0:pdc.nA,:] = np.matmul(pdc.Ad[0:pdc.nA,:], pdc.u) # (nA, dim)       
 
 def calc_atwa():
     """ Used in Lattice constraint """
     # W is a diagonal matrix whose diagonal elements wi are the metric weights of different replicas
     # atwa = A^T . (W*A), Anew = W*A
     for i in range(pdc.nA):
-        pdc.Anew[i,:] = pdc.W[int(i/(2*nV))] * pdc.Ad[i,:] # (nA, dim+nB)
+        pdc.Anew[i] = pdc.W[int(i/(2*nV))] * pdc.Ad[i] # (nA, dim+nB)
     
     # atwa = A^T . Anew
     pdc.atwa = np.matmul(pdc.Ad[0:pdc.nA,:].T, pdc.Anew[0:pdc.nA,:]) # (dim+nB, dim+nB)
     
     # atwainv = atwa^-1
-    pdc.atwainv = np.linalg.pinv(pdc.atwa)
+    pdc.atwainv = np.linalg.pinv(pdc.atwa) # (dim+nB, dim+nB)
     
     # let w' = atwa, the wtemp = (W'11)^-1, i.e., (atwa11)^-1
     wtemp = np.linalg.pinv(pdc.atwa[dim:,dim:]) # (nB, nB)
@@ -1033,13 +1037,15 @@ def calc_atwa():
     # (A.sqrt(L)) = Aij sqrt(Lj)
     eig_work = np.empty([dim, dim])
     for i in range(dim):
-        eig_work[i,:] = np.sqrt(eigs[i])*featurevector[i,:]
+        eig_work[i] = np.sqrt(eigs[i])*featurevector[i]
     
     pdc.Qinv = np.matmul(featurevector.T, eig_work)
     
+    # Q = W^-1/2
     for i in range(dim): 
         for j in range(dim):
             eig_work[i,j] /= eigs[i]
+            
     pdc.Q = np.matmul(featurevector.T, eig_work)
 
 def sortAold(Atosort: np.array, Altosort: np.array, nAtosort: int):
@@ -1202,15 +1208,15 @@ if __name__ == '__main__':
     Ltrd()
     update_A()
     
-    # # # plot()
+    # # # # # plot()
     err = update_weights()
     
     calc_atwa()
     
-    # 500000
-    for i in range(1):
-        err = dm_step()
-        print(err)
+    # # 500000
+    # for i in range(1):
+    #     err = dm_step()
+    #     print(err)
         
         # if ((i%50) == 49): Ltrd()
         # update_A()
@@ -1224,7 +1230,7 @@ if __name__ == '__main__':
             
         #     if (err < 8.e-11): break
     
-    print("iteration count: ", i+1)
+    # print("iteration count: ", i+1)
     
             
         
