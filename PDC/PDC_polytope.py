@@ -177,7 +177,6 @@ def proj_nonoverlap(pair: np.array):
                 js[0:nj-1] = np.arange(0, nj-1)
                 js[nj-1] = nV
     
-    print("mineig", mineig)
     if (mind != np.Infinity):
         s = 0.
         for i in range(minnj):
@@ -213,7 +212,7 @@ def proj_rigid(single: np.array):
     
     # XtY = X^T . Y
     temp = np.matmul(single_new.T, pdc.ref) # (dim, dim)
-    print(temp)
+
     # svd of (XtY)^T = R^T Q P^T:
     vxy, singval, XtY = svd(temp, lapack_driver="gesvd")
     
@@ -442,7 +441,7 @@ def concur(input: np.array):
     # U=plu (P), V=plv (R) (Kallus)
     ### do not why, but plu and plv is changed
     plv, singval, plu = svd(L, lapack_driver="gesvd")
-      
+    
     detL = np.prod(singval)
     if (np.fabs(detL) > pdc.V1): 
         detL = 1.
@@ -545,14 +544,15 @@ def dm_step():
     # f_D(X) = (1-1/beta)*pi_D(X) + 1/beta*X = X
     # f_C(X) = (1+1/beta)*pi_C(X) - 1/beta*X = 2*pi_C(X) - X
     pdc.x1[0:pdc.nA,:] = divide(pdc.x) # pi_D(X)
-    print(pdc.x1[511,0])
     
+    print(pdc.nA)
     pdc.xt[0:pdc.nA,:] = 2.*pdc.x1[0:pdc.nA,:] - pdc.x[0:pdc.nA,:] # f_C(X)
   
     pdc.x2[0:pdc.nA,:] = concur(pdc.xt) # pi_
     # print(pdc.x2[0:20,:])
     # err <- ||XC - XD||
     delta = pdc.x1[0:pdc.nA] - pdc.x2[0:pdc.nA]
+    
     err = np.sum(delta*delta)
     print(err)
     
@@ -561,7 +561,7 @@ def dm_step():
         err = pdc.nA*maxstep
     
     # iterate X = X + beta*(X_D-X_C)
-    pdc.x[0:pdc.nA] += delta
+    pdc.x[0:pdc.nA] -= delta
     
     return err/pdc.nA
 
@@ -739,7 +739,6 @@ def Ltrd():
     
     # u1 = LRrnew*u0, then LRrnew = u1*u0^-1
     LRrnew[0:nB,0:dim] = np.matmul(LRrnew[0:nB,0:dim], np.linalg.inv(Hinvd[0:dim,0:dim]))
-    print(LRrnew[0:nB,0:dim])
     
     unew[0:dim,:], H = LLL_reduction(pdc.u[0:dim,:], dim) # (dim, dim)
     
@@ -915,7 +914,7 @@ def update_A():
     nAnew = int(ListClosest(4.))
     
     pdc.Alnew[0:nAnew,:] = pdc.Anew[0:nAnew,:].copy() # (nAnew, dim+nP)
-    pdc.xt = np.matmul(pdc.Anew[0:nAnew,:], pdc.u) # (nAnew, dim)
+    pdc.xt[0:nAnew,:] = np.matmul(pdc.Anew[0:nAnew,:], pdc.u) # (nAnew, dim)
     pdc.x2[0:nAnew,:] = pdc.xt[0:nAnew,:].copy()
     
     j = i = int(0)
@@ -1201,36 +1200,28 @@ if __name__ == '__main__':
     
     pdc.ref = np.array([[1,0,0],[0,1,0],[0,0,1],[-1,0,0],[0,-1,0],[0,0,-1]])
     
-    
     Ltrd()
     update_A()
     
     # # # # # plot()
     err = update_weights()
-    
     calc_atwa()
     
     # 500000
-    for i in range(1):
+    for i in range(500000):
         err = dm_step()
-    #     print(err)
+        print(err)
         
-        # if ((i%50) == 49): Ltrd()
-        # update_A()
-        # err = update_weights()
-        # calc_atwa()
+        if ((i%50) == 49): Ltrd()
+        update_A()
+        err = update_weights()
+        calc_atwa()
         
-        # if (err < 8.e-11):
-        #     update_A()
-        #     err = update_weights()
-        #     print(err)
+        if (err < 8.e-11):
+            update_A()
+            err = update_weights()
+            print(err)
             
-        #     if (err < 8.e-11): break
+            if (err < 8.e-11): break
     
-    # print("iteration count: ", i+1)
-    
-            
-        
-        
-    
-    
+    print("iteration count: ", i+1)
