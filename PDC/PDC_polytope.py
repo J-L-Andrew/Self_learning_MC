@@ -6,6 +6,7 @@
 * who kindly provides his code on demand.
 """
 import numpy as np
+from tenpy.linalg.svd_robust import svd_gesvd, svd
 from numpy.linalg import norm
 import sys
 sys.path.append(r'/mnt/Edisk/andrew/Self_learning_MC')
@@ -205,21 +206,20 @@ def proj_rigid(single: np.array):
     """ project basis points onto rigid bodies """
     single_new = single.copy()
     
-    xavg = np.zeros(dim)
-    for i in range(nV):
-        for j in range(dim):
-            xavg[j] += single[i,j]/nV
+    xavg = np.empty(dim)
+    for i in range(dim):
+        xavg[i] = np.sum(single[0:nV,i]) / nV
     for i in range(nV): single_new[i] -= xavg
     
     # XtY = X^T . Y
-    XtY = np.matmul(single_new.T, pdc.ref)
+    temp = np.matmul(single_new.T, pdc.ref) # (dim, dim)
+    print(temp)
     # svd of (XtY)^T = R^T Q P^T:
-    XtY, singval, vxy = np.linalg.svd(XtY)
-    XtY = XtY.T
-    vxy = vxy.T
+    vxy, singval, XtY = svd(temp, lapack_driver="gesvd")
     
     # Rot = R^T P^T
     svd_work = np.matmul(XtY.T, vxy.T)
+
     # out = Y.U
     single_new = np.matmul(pdc.ref, svd_work)
     for i in range(nV): single_new[i] += xavg
@@ -440,12 +440,8 @@ def concur(input: np.array):
     L = np.matmul(pdc.u[0:dim,:].T, pdc.Qinv.T)
     # L = np.matmul(pdc.Qinv, pdc.u[0:dim,:]) # (dim, dim)
     # U=plu (P), V=plv (R) (Kallus)
-    plu, singval, plv = np.linalg.svd(L)
-    # follow dgesvd, stored columnwise
-    plu = plu.T
-    plv = plv.T
-    print("plu", plu)
-    print("plv", plv)
+    ### do not why, but plu and plv is changed
+    plv, singval, plu = svd(L, lapack_driver="gesvd")
       
     detL = np.prod(singval)
     if (np.fabs(detL) > pdc.V1): 
@@ -496,15 +492,14 @@ def concur(input: np.array):
     AtranWin = np.matmul(plu.T, plv.T) # (dim, dim)
     # dU = Q.AtranWin - U
     plu = np.matmul(pdc.Q, AtranWin) - pdc.u[0:dim,:]
-      
+
     # then let U1 += (-atwa11inv . atwa10) . (U0 - U0init)
     pdc.u[dim:,:] += np.matmul(pdc.mw11iw10, plu)
       
     # U += dU
     pdc.u[0:dim,:] += plu
       
-      
-    # Rigidity constraint
+    # Rigidity constraint, project basis points onto rigid bodies:
     for i in range(0, nB, nV): 
         pdc.u[dim+i:dim+i+nV,:] = proj_rigid(pdc.u[dim+i:dim+i+nV,:])
     
