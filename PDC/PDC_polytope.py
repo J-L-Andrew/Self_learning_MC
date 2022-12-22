@@ -6,7 +6,7 @@
 * who kindly provides his code on demand.
 """
 import numpy as np
-from tenpy.linalg.svd_robust import svd_gesvd, svd
+from tenpy.linalg.svd_robust import svd
 from numpy.linalg import norm
 import sys
 sys.path.append(r'/mnt/Edisk/andrew/Self_learning_MC')
@@ -214,7 +214,7 @@ def proj_rigid(single: np.array):
     temp = np.matmul(single_new.T, pdc.ref) # (dim, dim)
 
     # svd of (XtY)^T = R^T Q P^T:
-    vxy, singval, XtY = svd(temp, lapack_driver="gesvd")
+    vxy, singval, XtY = svd(temp)
     
     # Rot = R^T P^T
     svd_work = np.matmul(XtY.T, vxy.T)
@@ -440,7 +440,10 @@ def concur(input: np.array):
     # L = np.matmul(pdc.Qinv, pdc.u[0:dim,:]) # (dim, dim)
     # U=plu (P), V=plv (R) (Kallus)
     ### do not why, but plu and plv is changed
-    plv, singval, plu = svd(L, lapack_driver="gesvd")
+    plv, singval, plu = svd(L)
+  
+    # print(plu)
+    # print(plv)
     
     detL = np.prod(singval)
     if (np.fabs(detL) > pdc.V1): 
@@ -491,10 +494,10 @@ def concur(input: np.array):
     AtranWin = np.matmul(plu.T, plv.T) # (dim, dim)
     # dU = Q.AtranWin - U
     plu = np.matmul(pdc.Q, AtranWin) - pdc.u[0:dim,:]
-
+    
     # then let U1 += (-atwa11inv . atwa10) . (U0 - U0init)
     pdc.u[dim:,:] += np.matmul(pdc.mw11iw10, plu)
-      
+    
     # U += dU
     pdc.u[0:dim,:] += plu
       
@@ -545,16 +548,14 @@ def dm_step():
     # f_C(X) = (1+1/beta)*pi_C(X) - 1/beta*X = 2*pi_C(X) - X
     pdc.x1[0:pdc.nA,:] = divide(pdc.x) # pi_D(X)
     
-    print(pdc.nA)
     pdc.xt[0:pdc.nA,:] = 2.*pdc.x1[0:pdc.nA,:] - pdc.x[0:pdc.nA,:] # f_C(X)
-  
+
     pdc.x2[0:pdc.nA,:] = concur(pdc.xt) # pi_
-    # print(pdc.x2[0:20,:])
+  
     # err <- ||XC - XD||
     delta = pdc.x1[0:pdc.nA] - pdc.x2[0:pdc.nA]
     
     err = np.sum(delta*delta)
-    print(err)
     
     if (err > pdc.nA*maxstep):
         pdc.x1[0:pdc.nA] *= np.sqrt(maxstep*pdc.nA/err)
@@ -1210,18 +1211,22 @@ if __name__ == '__main__':
     # 500000
     for i in range(500000):
         err = dm_step()
-        print(err)
+        
+        print("err and mult:", err, err*pdc.nA)
         
         if ((i%50) == 49): Ltrd()
         update_A()
         err = update_weights()
         calc_atwa()
         
+        print(err, pdc.nA)
+        
         if (err < 8.e-11):
             update_A()
             err = update_weights()
-            print(err)
             
             if (err < 8.e-11): break
     
     print("iteration count: ", i+1)
+    
+    print("Solution\n", pdc.u)
