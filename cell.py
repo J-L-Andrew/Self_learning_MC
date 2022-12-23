@@ -16,9 +16,9 @@ class Cell(object):
     @property
     def volume(self):
         if self.dim == 3:
-            v = np.dot(np.cross(self.state.lattice[0], self.state.lattice[1]), self.state.lattice[2])
+            v = np.dot(np.cross(self.lattice[0], self.lattice[1]), self.lattice[2])
         elif self.dim == 2:
-            v = np.cross(self.state.lattice[0], self.state.lattice[1])
+            v = np.cross(self.lattice[0], self.lattice[1])
         return np.fabs(v)
     
     @property

@@ -11,21 +11,22 @@ tau = 1000
 maxstep = 1e10
 
 """ sphere """
-# dim = 3
-# nP = 4 # number of particles
-# nB = nP
+dim = 3
+nV = 1
+nP = 1 # number of particles
+nB = nP
 
-# replica = [Sphere(1.) for i in range(2)] # a pair of particles (unit spheres)
+replica = [Sphere(1.) for i in range(2)] # a pair of particles (unit spheres)
 
 """ polytope """
-dim = 3
-nP = 4 # number of particles
-nV = 6 # number of vertices
-nB = nP*nV
+# dim = 3
+# nP = 4 # number of particles
+# nV = 6 # number of vertices
+# nB = nP*nV
 
-PLANE_TOL = 1e-11
+# PLANE_TOL = 1e-11
 
-replica = [Polytope(1., "tetra") for i in range(2)]
+# replica = [Polytope(1., "tetra") for i in range(2)]
 
 """ superellipsoid """
 # dim = 3

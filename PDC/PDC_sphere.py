@@ -7,12 +7,12 @@
 """
 
 import numpy as np
+from tenpy.linalg.svd_robust import svd
 from numpy.linalg import norm
 import sys
 sys.path.append(r'/mnt/Edisk/andrew/Self_learning_MC')
 
 from LLL import LLL_reduction
-# from global_sphere import *
 from global_var import *
 from particle.sphere import *
 from cell import Cell
@@ -35,8 +35,6 @@ class Lambda(object):
 #=========================================================================#
 def proj_nonoverlap(pair: np.array):
     """ the divide projection acts independently on each replica pair """
-    
-    # rotation matrix & translation vector (centroid)
     pair_new = pair.copy()
     
     # check centroid-centroid distance
@@ -58,22 +56,6 @@ def divide(input: np.array):
 #=========================================================================#
 #  Concur projections                                                     #
 #=========================================================================#
-def proj_rigid(single: np.array):
-    """ project basis points onto rigid bodies """
-    
-    # single: means the parameter of a single particle
-    R = single[0:dim][:]
-    
-    U, Sigma, V = np.linalg.svd(R, full_matrices=True)
-    Sigma = np.ones(dim)
-    
-    temp = np.matmul(Sigma, V)
-    Rnew = np.matmul(U, temp)
-    
-    single_new = np.concatenate(Rnew, single[dim])
-    
-    return single_new
-
 def zbrent(l1: np.double, l2: np.double, singval: np.array, branch: int):
     """ Brent's method: a root-finding algorithm """
     # hyperparameters
@@ -91,29 +73,30 @@ def zbrent(l1: np.double, l2: np.double, singval: np.array, branch: int):
     
     # fa, fb: bisection method
     if (branch == -1):
-        fa = np.prod(singval)
-        for i in range(dim): fa *= Lambda().func0(a/singval[i])
+        fa = 1.
+        for i in range(dim): fa *= singval[i]*Lambda().func0(a/singval[i])
         fa = fa/pdc.V1 - 1.
         
-        fb = np.prod(singval)
-        for i in range(dim): fb *= Lambda().func0(b/singval[i])
+        fb = 1.
+        for i in range(dim): fb *= singval[i]*Lambda().func0(b/singval[i])
         fb = fb/pdc.V1 - 1.
     else:
-        fa = np.prod(singval)
-        for i in range(dim-1): fa *= Lambda().func1(a/singval[i])
-        if (branch == 0): fa *= Lambda().func1(a/singval[dim-1]) 
-        else: fa *= Lambda().func2(a/singval[dim-1])
+        fa = 1.
+        for i in range(dim-1): fa *= singval[i]*Lambda().func1(a/singval[i])
+        if (branch == 0): fa *= singval[dim-1]*Lambda().func1(a/singval[dim-1]) 
+        else: fa *= singval[dim-1]*Lambda().func2(a/singval[dim-1])
         fa = fa/pdc.V1 - 1.
         
-        fb = np.prod(singval)
-        for i in range(dim-1): fb *= Lambda().func1(b/singval[i])
-        if (branch == 0): fb *= Lambda().func1(b/singval[dim-1]) 
-        else: fb *= Lambda().func2(b/singval[dim-1])
+        fb = 1.
+        for i in range(dim-1): fb *= singval[i]*Lambda().func1(b/singval[i])
+        if (branch == 0): fb *= singval[dim-1]*Lambda().func1(b/singval[dim-1]) 
+        else: fb *= singval[dim-1]*Lambda().func2(b/singval[dim-1])
         fb = fb/pdc.V1 - 1.
     
     precb = np.fabs(a)/2. + np.fabs(b)/2.
     if ((fa > 0. and fb > 0.) or  (fa < 0. and fb < 0.)):
         print("root isn't bracketed in brent")
+        return 0.
         
     d = e = np.fabs(b-a)
     fc = fb
@@ -127,27 +110,30 @@ def zbrent(l1: np.double, l2: np.double, singval: np.array, branch: int):
             a = b
             b = c
             c = a
+            fa = fb
+            fb = fc
+            fc = fa
             
         tol1 = 2.*brent_prec*np.fabs(precb) + 0.5*brent_acc
-        xm = 0.5*(c-b)
+        xm = 0.5 * (c-b)
         if (np.fabs(xm) <= tol1 or fb == 0.): break
         if (np.fabs(e) >= tol1 and np.fabs(fa) > np.fabs(fb)):
             s = fb/fa
             if (a == c):
                 p = 2.*xm*s
-                q = 1.-s
+                q = 1. - s
             else:
                 q = fa/fc
                 r = fb/fc
                 p = s*(2.*xm*q*(q-r)-(b-a)*(r-1.))
-                q=(q-1.)*(r-1.)*(s-1.)
+                q = (q-1.)*(r-1.)*(s-1.)
                 
             if (p > 0.): q = -q
             p = np.fabs(p)
-            min1 = 3.*xm*q-np.fabs(tol1*q)
+            min1 = 3.*xm*q - np.fabs(tol1*q)
             min2 = np.fabs(e*q)
                 
-            if (2.*p < np.min(min1, min2)):
+            if (2.*p < min(min1, min2)):
                 e = d
                 d = p/q
             else:
@@ -162,21 +148,22 @@ def zbrent(l1: np.double, l2: np.double, singval: np.array, branch: int):
         fa = fb
         if (np.fabs(d) > tol1): b += d
         else: 
-            temp = np.fabs(tol1) if xm>0. else -np.fabs(tol1)
+            temp = np.fabs(tol1) if xm > 0. else -np.fabs(tol1)
             b += temp
             
         if (branch == -1):
-            fb = np.prod(singval)
-            for i in range(dim): fb *= Lambda().func0(b/singval[i])
+            fb = 1.
+            for i in range(dim): fb *= singval[i]*Lambda().func0(b/singval[i])
             fb = fb/pdc.V1 - 1.
         else:
-            fb = np.prod(singval)
-            for i in range(dim-1): fb *= Lambda().func1(b/singval[i])
-            if (branch == 0): fb *= Lambda().func1(b/singval[dim-1])
-            else: fb *= Lambda().func2(b/singval[dim-1])
+            fb = 1.
+            for i in range(dim-1): fb *= singval[i]*Lambda().func1(b/singval[i])
+            if (branch == 0): fb *= singval[dim-1]*Lambda().func1(b/singval[dim-1])
+            else: fb *= singval[dim-1]*Lambda().func2(b/singval[dim-1])
             fb = fb/pdc.V1 - 1.
           
     if (iter == brent_itmax): print("too many iterations in root finding!")
+    
     # switch over to Newton's method
           
     if (a > b): 
@@ -216,18 +203,18 @@ def zbrent(l1: np.double, l2: np.double, singval: np.array, branch: int):
         if (xx < a or xx > b):
             xx = (a+b)/2.
             if (branch == -1):
-                ff = np.prod(singval)
-                for i in range(dim): ff *= Lambda().func0(xx/singval[i])
+                ff = 1.
+                for i in range(dim): ff *= singval[i]*Lambda().func0(xx/singval[i])
                 ff = ff/pdc.V1 - 1.
                       
                 dff = 0.
                 for i in range(dim): dff += Lambda().dfunc0(xx/singval[i])/(singval[i]*Lambda().func0(xx/singval[i]))
                 dff *= ff
             else:
-                ff = np.prod(singval)
-                for i in range(dim-1): ff *= Lambda().func1(xx/singval[i])
-                if (branch == 0): ff *= Lambda().func1(xx/singval[dim-1])
-                else: ff *= Lambda().func2(xx/singval[dim-1])
+                ff = 1.
+                for i in range(dim-1): ff *= singval[i]*Lambda().func1(xx/singval[i])
+                if (branch == 0): ff *= singval[dim-1]*Lambda().func1(xx/singval[dim-1])
+                else: ff *= singval[dim-1]*Lambda().func2(xx/singval[dim-1])
                 ff = ff/pdc.V1 - 1.
                       
                 dff = 0.
@@ -241,7 +228,7 @@ def zbrent(l1: np.double, l2: np.double, singval: np.array, branch: int):
               
         else:
             if (branch == -1):
-                ff = np.prod(singval)
+                ff = 1.
                 for i in range(dim): ff *= singval[i]*Lambda().func0(xx/singval[i])
                 ff = ff/pdc.V1 - 1.
                       
@@ -249,7 +236,7 @@ def zbrent(l1: np.double, l2: np.double, singval: np.array, branch: int):
                 for i in range(dim): dff+=Lambda().dfunc0(xx/singval[i])/(singval[i]*Lambda().func0(xx/singval[i]))
                 dff *= ff
             else:
-                ff = np.prod(singval)
+                ff = 1.
                 for i in range(dim-1): ff *= singval[i]*Lambda().func1(xx/singval[i])
                 if (branch == 0): ff *= singval[dim-1]*Lambda().func1(xx/singval[dim-1])
                 else: ff *= singval[dim-1]*Lambda().func2(xx/singval[dim-1])
@@ -268,29 +255,26 @@ def zbrent(l1: np.double, l2: np.double, singval: np.array, branch: int):
           
     print("too many iterations in newton refinement")
     return xx
-   
+  
 def concur(input: np.array):
-      
       out = input[0:pdc.nA,:].copy() # (nA, dim)
       # u = M_bar = atwainv . (Atran . W*input)
       for i in range(pdc.nA):
           out[i] = pdc.W[int(i/2)]*input[i]
       
-      AtranWin = np.matmul(pdc.Ad[0:pdc.nA,:].T, out) # (dim+nP, dim)
-      pdc.u = np.matmul(pdc.atwainv, AtranWin) # (dim+nP, dim)
+      AtranWin = np.matmul(pdc.Ad[0:pdc.nA,:].T, out) # (dim+nB, dim)
+      pdc.u = np.matmul(pdc.atwainv, AtranWin) # (dim+nB, dim)
       
       # L = Qinv*M0
       L = np.matmul(pdc.u[0:dim,:].T, pdc.Qinv.T)
-      # To do: what hell is fortran style?
-      #L = np.matmul(pdc.Qinv, pdc.u[0:dim,:]) # (dim, dim)
       # U=plu (P), V=plv (R) (Kallus)
-      plu, singval, plv = np.linalg.svd(L,full_matrices=False)
+      plv, singval, plu = svd(L)
       
       # we need to make sure that sigma 从大到小排序
       detL = np.prod(singval)
-      
       if (np.fabs(detL) > pdc.V1): 
-          for i in range(dim): detL *= Lambda().func1(singval[dim-1]/singval[i])
+          detL = 1.
+          for i in range(dim): detL *= singval[i]*Lambda().func1(singval[dim-1]/singval[i])
           
           if (np.fabs(detL) > pdc.V1):
               # need to use branch 2 for i=dim-1
@@ -298,10 +282,10 @@ def concur(input: np.array):
               
               while True:
                   bracket = singval[dim-1] - ((singval[dim-1] - bracket)/2.)
-                  detL = np.prod(singval)
-                  for i in range(dim-1): detL *= Lambda().func1(bracket/singval[i])
-                  detL *= Lambda().func2(bracket/singval[dim-1])
-                  if (np.fabs(detL) < pdc.V1): break
+                  detL = 1.
+                  for i in range(dim-1): detL *= singval[i]*Lambda().func1(bracket/singval[i])
+                  detL *= singval[dim-1]*Lambda().func2(bracket/singval[dim-1])
+                  if (np.fabs(detL) > pdc.V1): break
               
               mu = zbrent(0., bracket, singval, 1)
               for i in range(dim-1): singval[i] *= Lambda().func1(mu/singval[i])
@@ -310,20 +294,20 @@ def concur(input: np.array):
               bracket = 0
               while True:
                   bracket = singval[dim-1] - ((singval[dim-1] - bracket)/2.)
-                  detL = np.prod(singval)
-                  for i in range(dim): detL *= Lambda().func1(bracket/singval[i])
-                  if (np.fabs(detL) > pdc.V1): break
+                  detL = 1.
+                  for i in range(dim): detL *= singval[i]*Lambda().func1(bracket/singval[i])
+                  if (np.fabs(detL) < pdc.V1): break
               
               mu = zbrent(0., bracket, singval, 0)
               for i in range(dim): singval[i] *= Lambda().func1(mu/singval[i])
       else:
-          bracket = singval[dim-1]/1024.
+          bracket = singval[dim-1] / 1024.
           
           while True:
               bracket *= 2.
-              detL = np.prod(singval)
-              for i in range(dim): detL *= Lambda().func0(bracket/singval[i])
-              if (np.fabs(detL) < pdc.V1): break
+              detL = 1.
+              for i in range(dim): detL *= singval[i]*Lambda().func0(bracket/singval[i])
+              if (np.fabs(detL) > pdc.V1): break
               
           mu = zbrent(0., bracket, singval, -1)
           for i in range(dim): singval[i] *= Lambda().func0(mu/singval[i])
@@ -331,7 +315,7 @@ def concur(input: np.array):
       # let U0 = Q.P.SINGVAL.R
       for i in range(dim):
           for j in range(dim):
-              plv[i] *= singval[j]
+              plv[i][j] *= singval[j]
 
       AtranWin = np.matmul(plu.T, plv.T) # (dim, dim)
       
@@ -344,10 +328,6 @@ def concur(input: np.array):
       # U += dU
       pdc.u[0:dim,:] += plu
       
-      # Rigidity constraint
-      # for i in range(nP): 
-      #     u[dim+i, dim+i+nP][:] = proj_rigid(u[dim+i, dim+i+nP][:])
-      
       out = np.matmul(pdc.Ad[0:pdc.nA,:], pdc.u)
       
       return out
@@ -359,7 +339,7 @@ def concur(input: np.array):
 def initialize(pd_target: np.double):
     """ start from random initial configurations """
     pdc.nA = 0
-    pdc.V0 = nB*replica[0].volume / pd_target
+    pdc.V0 = nP*replica[0].volume / pd_target
     
     pdc.LRr= np.diag(np.ones(dim+nB))
     
@@ -384,8 +364,6 @@ def initialize(pd_target: np.double):
     packing.cell.color = np.array([0.25,0.25,0.25])
     
 def dm_step():
-    err = 0.
-    
     # f_D(X) = (1-1/beta)*pi_D(X) + 1/beta*X = X
     # f_C(X) = (1+1/beta)*pi_C(X) - 1/beta*X = 2*pi_C(X) - X
     pdc.x1[0:pdc.nA,:] = divide(pdc.x) # pi_D(X)
@@ -393,6 +371,7 @@ def dm_step():
     pdc.xt[0:pdc.nA,:] = 2.*pdc.x1[0:pdc.nA,:] - pdc.x[0:pdc.nA,:] # f_C(X)
     
     pdc.x2[0:pdc.nA,:] = concur(pdc.xt) # pi_
+    
     # err <- ||XC - XD||
     delta = pdc.x1[0:pdc.nA] - pdc.x2[0:pdc.nA]
     err = np.sum(delta*delta)
@@ -402,7 +381,7 @@ def dm_step():
         err = pdc.nA*maxstep
     
     # iterate X = X + beta*(X_D-X_C)
-    pdc.x[0:pdc.nA] += delta
+    pdc.x[0:pdc.nA] -= delta
     
     return err/pdc.nA
 
@@ -411,16 +390,19 @@ def weight_func(pair: np.array, alpha: np.double):
     A function that assigns replica weights based on their 
     configuration in the concur estimate.
     
-    return: w(Xc) and overlap measure (dist here)
+    return: w(Xc) and overlap measure (4-dist^2 here)
     """
-    dist = np.linalg.norm(pair[0] - pair[1])
-  
-    if (dist < 2):
-        y = np.exp(alpha*(4-dist**2))
-    else:
-        y = (dist**2 - 3)**(-2-dim/2)
+    dist = norm(pair[0] - pair[1])
+    ret = outscribed_d**2 - dist**2
     
-    return y, dist
+    if (ret < 0.): 
+        y = (dist**2 - 3)**(-2-dim/2)
+    else: 
+        r2 = alpha*ret
+        if (r2 > 5.): r2 = 5.
+        y = np.exp(r2)
+    
+    return y, max(ret, 0.)
 
 def update_weights():
     """ perform the weight adjustments according to Eq. (47) """
@@ -507,7 +489,7 @@ def RotOpt():
     
     # g[0:dim][:] = G3 = G2 * Q^T (lower-triangular matrix)
     # let x = x * Q^T
-    g = np.zeros([dim+nB, dim])
+    g = np.empty([dim+nB, dim])
     g[0:dim,:] = np.matmul(uu, gs.T)
     g[dim:,:] = np.matmul(pdc.u[dim:,:], gs.T)
     
@@ -617,10 +599,10 @@ def update_A():
     olda = np.empty(dim+nB, dtype=int)
     newa = np.empty(dim+nB, dtype=int)
     
-    nAnew = int(ListClosest(outscribed_d))
+    nAnew = int(ListClosest(2*outscribed_d))
     
     pdc.Alnew[0:nAnew,:] = pdc.Anew[0:nAnew,:].copy() # (nAnew, dim+nP)
-    pdc.xt = np.matmul(pdc.Anew[0:nAnew,:], pdc.u) # (nAnew, dim)
+    pdc.xt[0:nAnew,:] = np.matmul(pdc.Anew[0:nAnew,:], pdc.u) # (nAnew, dim)
     pdc.x2[0:nAnew,:] = pdc.xt[0:nAnew,:].copy()
     
     j = i = int(0)
@@ -705,10 +687,10 @@ def calc_atwa():
     # W is a diagonal matrix whose diagonal elements wi are the metric weights of different replicas
     # atwa = A^T . (W*A), Anew = W*A
     for i in range(pdc.nA):
-        pdc.Anew[i,:] = pdc.W[int(i/2)] * pdc.Ad[i,:] # (nA, dim+nP)
+        pdc.Anew[i,:] = pdc.W[int(i/2)] * pdc.Ad[i,:] # (nA, dim+nB)
     
     # atwa = A^T . Anew
-    pdc.atwa = np.matmul(pdc.Ad[0:pdc.nA,:].T, pdc.Anew[0:pdc.nA,:]) # (dim+nP, dim+nP)
+    pdc.atwa = np.matmul(pdc.Ad[0:pdc.nA,:].T, pdc.Anew[0:pdc.nA,:]) # (dim+nB, dim+nB)
     
     # atwainv = atwa^-1
     pdc.atwainv = np.linalg.pinv(pdc.atwa)
@@ -721,12 +703,12 @@ def calc_atwa():
     
     # atwa2 = W'' = W'00 - W'01*(W'11)^-1 * W'10 = W'00 - W'01*temp
     atmp = pdc.atwa.copy()
+    print(atmp[0:dim,0:dim])
     atmp[0:dim,0:dim] += np.matmul(pdc.atwa[0:dim,dim:], pdc.mw11iw10) # (dim, dim)
     
-    eigs, featurevector = np.linalg.eig(atmp[0:dim,0:dim])
-    sorted_indices = np.argsort(eigs)
-    eigs = eigs[sorted_indices]
-    featurevector = featurevector[sorted_indices]
+    print(atmp[0:dim,0:dim])
+    eigs, featurevector = np.linalg.eigh(atmp[0:dim,0:dim])
+    featurevector = featurevector.T
     
     # let Q = W^-1/2, then V1 (V_target) = V0*det(Q)
     pdc.V1 = pdc.V0
@@ -813,7 +795,7 @@ def sortAold(Atosort: np.array, Altosort: np.array, nAtosort: int):
             
             if (j < ir and comp == -1):
                 j += 1
-                rra1 = rra2
+                rra1 = rra2.copy()
             
             comp = 0
             for k in range(dim+nB-1, -1, -1):
@@ -844,7 +826,7 @@ def sortAold(Atosort: np.array, Altosort: np.array, nAtosort: int):
 #=========================================================================#
 #  Visualization                                                          #
 #=========================================================================#
-def plot():
+def plot(repeat: bool):
     """ XYZ file """
     for i, particle in enumerate(packing.particles):
         particle.centroid = pdc.u[dim+i]
@@ -852,7 +834,7 @@ def plot():
     packing.cell.lattice = pdc.u[0:dim,:]
 
     f = f'config.xyz'
-    packing.output_xyz(f, repeat=False)
+    packing.output_xyz(f, repeat)
 
 
 
@@ -862,33 +844,44 @@ if __name__ == '__main__':
     pdc = pdc()
     pdc.allocate()
     
-    initialize(pd_target=0.75)
+    initialize(pd_target=0.74047)
     
-    pdc.u[0:dim,:] = np.array([[3.852803, -0.002112, 0.005662],
-                              [0.005969, 3.854232, -0.006049],
-                              [-0.003296, 0.005365, 3.841554]])
+    # pdc.u[0:dim,:] = np.array([[3.852803, -0.002112, 0.005662],
+    #                           [0.005969, 3.854232, -0.006049],
+    #                           [-0.003296, 0.005365, 3.841554]])
     
     Ltrd()
     update_A()
     
     # # plot()
     err = update_weights()
-    
     calc_atwa()
     
-    # for i in range(500000):
-    #     err = dm_step()
+    for i in range(500000):
+        err = dm_step()
         
-    #     if ((i%50) == 49): Ltrd()
-    #     update_A()
-    #     err = update_weights()
-    #     calc_atwa()
+        print("err and mult:", err, err*pdc.nA)
         
-    #     if (err < 8.e-11):
-    #         update_A()
-    #         err = update_weights()
+        if ((i%50) == 49): Ltrd()
+        update_A()
+        err = update_weights()
+        calc_atwa()
+        
+        print(err, pdc.nA)
+        
+        if (err < 8.e-11):
+            update_A()
+            err = update_weights()
             
-    #         if (err < 8.e-11): break
+            if (err < 8.e-11): break
+    
+    print("iteration count: ", i+1)
+    
+    print("Solution\n", pdc.u)
+    
+    plot(repeat=True)
+    print(packing.fraction)
+
             
     
             

@@ -775,11 +775,11 @@ def Ltrd():
 
 def RotOpt():
     """ 
-    Algorithm CLOSEPOINT adpated from "Closest Point Search in Lattices". step2: QR decomposition
+    Algorithm CLOSEPOINT adpated from "Closest Point Search in Lattices".
     
     Return
     ----------
-    g, h(int)
+    g(lower-triangular matrix), h(int)
     """
     h = np.arange(0, dim, dtype=int)
 
@@ -789,7 +789,8 @@ def RotOpt():
         uu[i] = pdc.u[h[i]].copy()
 
     # Gram schimidt, gs = Q (orthonormal matrix)
-    gs = np.empty([dim, dim]) # (dim, dim)
+    # then G2 = G3 * Q, and G3 becomes a lower-triangular matrix
+    gs = np.empty([dim, dim])
     for i in range(dim):
         gs[i] = uu[i].copy()
         # gs[k] -= (gs[k].gs[l<k]) gs[l]
@@ -797,8 +798,7 @@ def RotOpt():
         
         gs[i] /= norm(gs[i]) # normalized
     
-    # g[0:dim][:] = G3 = G2 * Q^T (lower-triangular matrix)
-    # let x = x * Q^T
+    # G3 = G2 * Q^T
     g = np.empty([dim+nB, dim])
     g[0:dim,:] = np.matmul(uu, gs.T)
     g[dim:,:] = np.matmul(pdc.u[dim:,:], gs.T)
@@ -808,9 +808,7 @@ def RotOpt():
 def ListClosest(rho0: np.double):
     """
     Using the generating matrix obtained in the concur projection, find 
-    all replicas to represent.
-    
-    recreate Anew
+    all replicas to represent (recreate Anew).
     
     Parameters
     ----------
@@ -839,12 +837,11 @@ def ListClosest(rho0: np.double):
             # from vnn to vn-1 n-1
             pair_level[npairs] = dim
             
-            pair_x[npairs,:] = np.zeros(dim)
+            pair_x[npairs] = np.zeros(dim)
             for n in range(nV):
                 pair_x[npairs] += -(g[dim+j+n] - g[dim+i+n])/nV # centroid
             pair_rho[npairs] = rho0
 
-            # starting index in nB
             pair_p1[npairs], pair_p2[npairs] = j, i
             npairs += 1
     
@@ -877,6 +874,7 @@ def ListClosest(rho0: np.double):
                 pair_level[npairs] = level - 1
                 pair_x[npairs,0:level-1] = xx[0:level-1] - indice*g[k,0:level-1]
                 
+                # yn := |un-un^| * ||v_perp||
                 pair_rho[npairs] = np.sqrt(rho**2 - (indice*vperp-xperp)**2)
                 pair_p1[npairs], pair_p2[npairs] = p1, p2
                 pair_idx[npairs,0] = indice
@@ -1052,8 +1050,8 @@ def sortAold(Atosort: np.array, Altosort: np.array, nAtosort: int):
     
     n = int(nAtosort/(2*nV))
     
-    l = n-1
-    ir = n-1
+    l = n - 1
+    ir = n - 1
     
     while True:
         if (l > 0):
@@ -1112,7 +1110,7 @@ def sortAold(Atosort: np.array, Altosort: np.array, nAtosort: int):
             
             if (j < ir and comp == -1):
                 j += 1
-                rra1 = rra2
+                rra1 = rra2.copy()
             
             comp = 0
             for k in range(dim+nB-1, -1, -1):
@@ -1171,33 +1169,33 @@ if __name__ == '__main__':
     #                           [0.005969, 3.854232, -0.006049],
     #                           [-0.003296, 0.005365, 3.841554],
     
-    pdc.u[0:dim+nB,:] = np.array([[3.852803, -0.002112, 0.005662],
-                              [0.005969, 3.854232, -0.006049],
-                              [-0.003296, 0.005365, 3.841554],
-                              [0.001079, -0.000452, 0.002577],
-                              [-0.002704, 0.000268, 0.009045],
-                              [0.008324, 0.002714, 0.004346],
-                              [-0.007168, 0.002139, -0.009674],
-                              [-0.005142, -0.007255, 0.006084],
-                              [-0.006866, -0.001981, -0.007404],
-                              [-0.007824, 0.009978, -0.005635],
-                              [0.000259, 0.006782, 0.002253],
-                              [-0.004079, 0.002751, 0.000486],
-                              [-0.000128, 0.009456, -0.004150],
-                              [0.005427, 0.000535, 0.005398],
-                              [-0.001995, 0.007831, -0.004334],
-                              [-0.002951, 0.006154, 0.008381],
-                              [-0.008605, 0.008987, 0.000520],
-                              [-0.008279, -0.006156, 0.003265],
-                              [0.007805, -0.003022, -0.008717],
-                              [-0.009600, -0.000846, -0.008738],
-                              [-0.005234, 0.009413, 0.008044],
-                              [0.007018, -0.004667, 0.000795],
-                              [-0.002496, 0.005205, 0.000251],
-                              [0.003354, 0.000632, -0.009214],
-                              [-0.001247, 0.008637, 0.008616],
-                              [0.004419, -0.004314, 0.004771],
-                              [0.002800, -0.002919, 0.003757]])
+    # pdc.u[0:dim+nB,:] = np.array([[3.852803, -0.002112, 0.005662],
+    #                           [0.005969, 3.854232, -0.006049],
+    #                           [-0.003296, 0.005365, 3.841554],
+    #                           [0.001079, -0.000452, 0.002577],
+    #                           [-0.002704, 0.000268, 0.009045],
+    #                           [0.008324, 0.002714, 0.004346],
+    #                           [-0.007168, 0.002139, -0.009674],
+    #                           [-0.005142, -0.007255, 0.006084],
+    #                           [-0.006866, -0.001981, -0.007404],
+    #                           [-0.007824, 0.009978, -0.005635],
+    #                           [0.000259, 0.006782, 0.002253],
+    #                           [-0.004079, 0.002751, 0.000486],
+    #                           [-0.000128, 0.009456, -0.004150],
+    #                           [0.005427, 0.000535, 0.005398],
+    #                           [-0.001995, 0.007831, -0.004334],
+    #                           [-0.002951, 0.006154, 0.008381],
+    #                           [-0.008605, 0.008987, 0.000520],
+    #                           [-0.008279, -0.006156, 0.003265],
+    #                           [0.007805, -0.003022, -0.008717],
+    #                           [-0.009600, -0.000846, -0.008738],
+    #                           [-0.005234, 0.009413, 0.008044],
+    #                           [0.007018, -0.004667, 0.000795],
+    #                           [-0.002496, 0.005205, 0.000251],
+    #                           [0.003354, 0.000632, -0.009214],
+    #                           [-0.001247, 0.008637, 0.008616],
+    #                           [0.004419, -0.004314, 0.004771],
+    #                           [0.002800, -0.002919, 0.003757]])
     
     pdc.ref = np.array([[1,0,0],[0,1,0],[0,0,1],[-1,0,0],[0,-1,0],[0,0,-1]])
     

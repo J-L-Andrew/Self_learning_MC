@@ -112,6 +112,22 @@ def proj_rigid(single: np.array):
     
     return single_new
 
+def proj_rigid(single: np.array):
+    """ project basis points onto rigid bodies """
+    
+    # single: means the parameter of a single particle
+    R = single[0:dim][:]
+    
+    U, Sigma, V = np.linalg.svd(R, full_matrices=True)
+    Sigma = np.ones(dim)
+    
+    temp = np.matmul(Sigma, V)
+    Rnew = np.matmul(U, temp)
+    
+    single_new = np.concatenate(Rnew, single[dim])
+    
+    return single_new
+
 
 def zbrent(l1: np.double, l2: np.double, singval: np.array, branch: int):
     """ Brent's method: a root-finding algorithm """
