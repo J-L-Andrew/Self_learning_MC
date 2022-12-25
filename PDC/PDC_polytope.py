@@ -45,7 +45,7 @@ def proj_nonoverlap(pair: np.array):
     s2 = np.sum(pair[nV:2*nV,:], axis=0) / nV
     dist = norm(s1 - s2)
     
-    if (dist**2 > 4.): return pair_new
+    if (dist > outscribed_d): return pair_new
     
     # check if pair is already non-overlapping
     js[0:dim-1] = np.arange(0, dim-1)
@@ -94,9 +94,7 @@ def proj_nonoverlap(pair: np.array):
     js[nj-1] = nV
     
     mind = bestatlevel = np.Infinity
-    gg = 0
     while (True):
-        gg += 1
         # distance to coplane is given by smallest eig of X^T.X matrix
         xavg = np.zeros(dim)
         for i in range(nj):
@@ -517,7 +515,7 @@ def initialize(pd_target: np.double):
     """ start from random initial configurations """
     pdc.nA = 0
     # pdc.V0 = nB*replica[0].volume / pd_target
-    pdc.V0 = 4./3.*nP/pd_target
+    pdc.V0 = nP*replica[0].volume / pd_target
     
     pdc.LRr= np.diag(np.ones(dim+nB))
     
@@ -527,8 +525,8 @@ def initialize(pd_target: np.double):
     pdc.u[dim:,:] = -0.5 + np.random.random((nB, dim))
     
     # For xyz file
-    packing.particle_type = 'sphere'
-    packing.num_particles = nB
+    packing.particle_type = 'polytope'
+    packing.num_particles = nP
     
     # add particles
     packing.dim = 3
@@ -565,81 +563,6 @@ def dm_step():
     
     return err/pdc.nA
 
-# def weight_func(pair: np.array):
-#     """
-#     A function that assigns replica weights based on their 
-#     configuration in the concur estimate.
-    
-#     return: w(Xc) and overlap measure (dist here)
-#     """
-#     js = np.empty(10, dtype=int)
-#     gs = np.empty([dim, dim])
-#     quad = np.empty([dim, dim])
-    
-#     s1 = np.sum(pair[0:nV,:], axis=0) / nV
-#     s2 = np.sum(pair[nV:2*nV,:], axis=0) / nV
-#     dist = norm(s1 - s2)
-    
-#     if (dist < outscribed_d):
-#         js[0:dim-1] = np.arange(0, dim-1)
-#         js[dim-1] = nV
-        
-#         r2 = np.Infinity
-        
-#         while (True):
-#             s1 = s2 = 0. # delta^2+(S) & delta^2-(S)
-        
-#             for i in range(dim-1):
-#                 gs[i] = pair[js[i+1]] - pair[js[0]]
-        
-#             quad[dim-1,0] = gs[0,1]*gs[1,2] - gs[0,2]*gs[1,1]
-#             quad[dim-1,1] = gs[0,2]*gs[1,0] - gs[0,0]*gs[1,2]
-#             quad[dim-1,2] = gs[0,0]*gs[1,1] - gs[0,1]*gs[1,0]
-        
-#             quad[dim-1] /= norm(quad[dim-1])
-        
-#             for i in range(nV):
-#                 s = 0.
-#                 for j in range(dim):
-#                     s += (pair[i,j] - pair[js[0],j])*quad[dim-1,j]
-#                 if (s < 0.): s1 += s**2
-#                 else: s2 += s**2
-            
-#             for i in range(nV, 2*nV):
-#                 s = 0.
-#                 for j in range(dim):
-#                     s += (pair[i,j] - pair[js[0],j])*quad[dim-1,j]
-#                 if (s > 0.): s1 += s**2
-#                 else: s2 += s**2
-            
-#             s2 = min(s1, s2)
-#             if (s2 < r2): r2 = s2
-            
-#             js[dim-1] += 1
-#             if (js[dim-1] == 2*nV):
-#                 k = 1
-#                 while (True):
-#                     js[dim-1-k] += 1
-#                     if (js[dim-1-k] == 2*nV-k): k += 1
-#                     else: break
-                
-#                 if (js[0] >= nV): break
-#                 for i in range(k-1, -1, -1):
-#                     js[dim-1-i] = js[dim-2-i] + 1
-#                 if (js[dim-1] < nV): js[dim-1] = nV
-      
-#     else: r2 = 0.
-#     ret = r2
-    
-#     if (r2 < PLANE_TOL): r2 = -(dist**2 - inscribed_d**2) # (ri^2 - 4rin^2)
-#     else: r2 *= 10.
-    
-#     if (r2 > 5.): r2 = 5.
-#     if (r2 > 0.): y = np.exp(r2)
-#     else: y = (1 - r2)**(-2)
-    
-#     return y, ret
-
 def weight_func(pair: np.array):
     """
     A function that assigns replica weights based on their 
@@ -655,7 +578,7 @@ def weight_func(pair: np.array):
     s2 = np.sum(pair[nV:2*nV], axis=0) / nV
     dist = norm(s1 - s2)
     
-    if (dist**2 < 4.):
+    if (dist < outscribed_d):
         js[0:dim-1] = np.arange(0, dim-1)
         js[dim-1] = nV
         
@@ -704,7 +627,7 @@ def weight_func(pair: np.array):
     else: r2 = 0.
     ret = r2
     
-    if (r2 < PLANE_TOL): r2 = -(dist**2 - 4./3.) # (ri^2 - 4rin^2)
+    if (r2 < PLANE_TOL): r2 = -(dist**2 - inscribed_d**2) # (ri^2 - 4rin^2)
     else: r2 *= 10.
     
     if (r2 > 5.): r2 = 5.
@@ -909,7 +832,7 @@ def update_A():
     olda = np.empty(dim+nB, dtype=int)
     newa = np.empty(dim+nB, dtype=int)
     
-    nAnew = int(ListClosest(4.))
+    nAnew = int(ListClosest(2.*outscribed_d))
     
     pdc.Alnew[0:nAnew,:] = pdc.Anew[0:nAnew,:].copy() # (nAnew, dim+nP)
     pdc.xt[0:nAnew,:] = np.matmul(pdc.Anew[0:nAnew,:], pdc.u) # (nAnew, dim)
@@ -1196,7 +1119,7 @@ if __name__ == '__main__':
     #                           [0.004419, -0.004314, 0.004771],
     #                           [0.002800, -0.002919, 0.003757]])
     
-    pdc.ref = np.array([[1,0,0],[0,1,0],[0,0,1],[-1,0,0],[0,-1,0],[0,0,-1]])
+    pdc.ref = replica[0].vertice
     
     Ltrd()
     update_A()

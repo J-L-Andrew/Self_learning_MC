@@ -350,7 +350,7 @@ def initialize(pd_target: np.double):
     
     # For xyz file
     packing.particle_type = 'sphere'
-    packing.num_particles = nB
+    packing.num_particles = nP
     
     # add particles
     packing.dim = 3

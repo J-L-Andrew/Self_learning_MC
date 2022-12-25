@@ -121,3 +121,20 @@ class Packing(object):
                     'Properties=pos:R:3:radius:R:1:color:R:3 \n'
                 )
                 np.savetxt(f, np.column_stack([centroid, radius, color]))
+                
+    def output_scr(self, filename, repeat=True):
+        """ work for polytope and superellipsoid """
+        
+        with open(filename, 'w') as f:
+            f.write('-osnap off\n')
+            f.write('erase all \n')
+            f.write('vscurrent 2\n')
+            
+            if (repeat):
+                for particle in self.visable_particles:
+                    pass
+
+            
+            
+            
+            
