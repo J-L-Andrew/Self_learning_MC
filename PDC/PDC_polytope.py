@@ -192,7 +192,6 @@ def proj_nonoverlap(pair: np.array):
 def divide(input: np.array): 
     out = input[0:pdc.nA,:].copy() # (nA, dim)
     for i in range(0, pdc.nA, 2*nV):
-        #i=504
         out[i:i+2*nV,:] = proj_nonoverlap(input[i:i+2*nV,:])
     
     return out

@@ -4,6 +4,7 @@ sys.path.append(r'/mnt/Edisk/andrew/Self_learning_MC')
 
 from particle.sphere import *
 from particle.polytope import *
+from particle.superellipsoid import *
 from packing import Packing
 
 max_nA = 400000
@@ -31,10 +32,10 @@ replica = [Sphere(1.) for i in range(2)] # a pair of particles (unit spheres)
 """ superellipsoid """
 # dim = 3
 # nP = 4 # number of particles
-# nV = 4 # number of vertices
-# nB = nP*nV
+# nV = dim+1 # just for convient
+# nB = nP*(dim+1)
 
-# replica = [Polytope(1., "tetra") for i in range(2)]
+# replica = [SuperEllipsoid(1.5, 1., 1., 1.) for i in range(2)]
 
 outscribed_d = replica[0].outscribed_d
 inscribed_d = replica[0].inscribed_d

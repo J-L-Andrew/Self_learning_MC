@@ -6,6 +6,7 @@
 """
 
 import numpy as np
+from numpy.linalg import norm
 from scipy import optimize
 from particle.base import Particle
 
@@ -20,7 +21,7 @@ determine if such a vector exists by numerically minimizing delta_h(u)/||u||.
 """
 def delta_h_normalized(u: np.array, K1: Particle, K2: Particle):
     """ delta_h(u) / ||u|| """
-    y = (K1.support_funcs(u) + K2.support_funcs(-u)) / np.linalg.norm(u)
+    y = (K1.support_funcs(u) + K2.support_funcs(-u)) / norm(u)
     return y
 
 
@@ -55,8 +56,8 @@ def config_dis(x: np.array, K1: Particle, K2: Particle):
     r12 = K1.centroid - K2.centroid
     delta_h = K1.support_func(v1) + K2.support_func(-v2) + np.dot(r12, u)
     
-    y = (delta_h**2.)/2. + np.linalg.norm(np.matmul(K1.rot_mat.T, u)-v1)**2. + np.linalg.norm(np.matmul(K2.rot_mat.T, u)-v2)**2.
-    y /= np.linalg.norm(u)**2.
+    y = (delta_h**2.)/2. + norm(np.matmul(K1.rot_mat.T, u)-v1)**2. + norm(np.matmul(K2.rot_mat.T, u)-v2)**2.
+    y /= norm(u)**2.
     
     return y
 
@@ -66,14 +67,14 @@ def resolve_overlap(x: np.array, K1: Particle, K2: Particle):
     r12 = K1.centroid - K2.centroid
     delta_h = K1.support_func(v1) + K2.support_func(-v2) + np.dot(r12, u)
     
-    K1.centroid -= u*delta_h/2./(np.linalg.norm(u)**2.)
-    K2.centroid += u*delta_h/2./(np.linalg.norm(u)**2.)
+    K1.centroid -= u*delta_h/2./(norm(u)**2.)
+    K2.centroid += u*delta_h/2./(norm(u)**2.)
     
     col = u.reshape(-1, 1)
     row = (v1 - np.matmul(u, K1.rot_mat)).reshape(1, -1)
-    K1.rot_mat += np.matmul(col, row) / (np.linalg.norm(u)**2.)
+    K1.rot_mat += np.matmul(col, row) / (norm(u)**2.)
     row = (v2 - np.matmul(u, K2.rot_mat)).reshape(1, -1)
-    K2.rot_mat += np.matmul(col, row) / (np.linalg.norm(u)**2.)
+    K2.rot_mat += np.matmul(col, row) / (norm(u)**2.)
 
 
 def projection(K1: Particle, K2: Particle):
@@ -84,4 +85,3 @@ def projection(K1: Particle, K2: Particle):
     res = optimize.minimize(lambda x: config_dis(x, K1, K2), x0, method='SLSQP')
     
     resolve_overlap(res.x, K1, K2)
-
